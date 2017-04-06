@@ -1,0 +1,11 @@
+﻿  crypt_blowfish.cpp
+  crypt.cpp
+..\..\src\crypt.cpp(27): fatal error C1083: Cannot open include file: 'cryptopp/md5.h': No such file or directory
+  dlg_about.cpp
+  dlg_preferences.cpp
+..\..\src\dlg_preferences.cpp(20): fatal error C1083: Cannot open include file: 'cryptopp/osrng.h': No such file or directory
+  dlg_crypt.cpp
+  cryptheader.cpp
+..\..\src\cryptheader.cpp(15): fatal error C1083: Cannot open include file: 'cryptopp/base64.h': No such file or directory
+  nppcrypt.cpp
+  Generating Code...
