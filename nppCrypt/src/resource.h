@@ -16,7 +16,6 @@
 #define IDD_CRYPT_ENCODING						112
 #define IDD_INITDATA							113
 #define IDD_CRYPT_SMARTCARD						114
-#define IDD_CRYPT_SMARTCARD_ENTER_PIN			115
 #define IDC_OK									998
 #define IDC_CANCEL							    999
 #define IDC_CRYPT_TAB						    1000

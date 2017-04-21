@@ -61,6 +61,7 @@ private:
 	crypt::Cipher			t_cipher;
 	crypt::KeyDerivation	t_key_derivation;
 	string					t_password;
+	string					pin;
 
 	HWND					hwnd_basic;
 	HWND					hwnd_auth;
@@ -68,6 +69,8 @@ private:
 	HWND					hwnd_iv;
 	HWND					hwnd_encoding;
 	HWND					hwnd_smartCard;
+
+	HINSTANCE				m_hInstance;
 
 	URLCtrl					url_help[7];
 	enum HelpURL { encoding, cipher, mode, salt, keyalgo, hmac, iv };

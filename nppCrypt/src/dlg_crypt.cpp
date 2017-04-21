@@ -853,31 +853,13 @@ bool DlgCrypt::updateOptions()
 
 bool DlgCrypt::OnClickOKSmartCard()
 {
-	::DestroyWindow(hwnd_smartCard);
-	//hwnd_smartCard = CreateDialogParam(hinst, MAKEINTRESOURCE(IDD_CRYPT_SMARTCARD), hTab, (DLGPROC)dlgProc, (LPARAM)this);
-	//MoveWindow(hwnd_smartCard, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, FALSE);
+	TCHAR t_pin[crypt::Constants::pin_size + 1];
+	::GetDlgItemText(hwnd_smartCard, IDC_CRYPT_PIN, t_pin, crypt::Constants::pin_size + 1);
 
-	
-	
-
-/*
-	TCHAR temp_pw[crypt::Constants::password_max + 1];
-	::GetDlgItemText(hwnd_basic, IDC_CRYPT_PASSWORD, temp_pw, crypt::Constants::password_max + 1);
-
-	if (operation == Operation::Enc && !confirm_password) {
-		t_password.assign(temp_pw);		
-		if (t_password.size() > 0) {
-			::SetDlgItemText(hwnd_basic, IDC_CRYPT_STATIC_PASSWORD, TEXT("Confirm:"));
-			::SetDlgItemText(hwnd_basic, IDC_CRYPT_PASSWORD, TEXT(""));
-			::SetFocus(::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD));
-			confirm_password = true;
-		}
-	}
-
-	t_password.assign(temp_pw);
-	if (t_password.size() > 0 && updateOptions()) {
+	pin.assign(t_pin);
+	if (pin.size() > 0) {
 		return true;
-	}*/
+	}
 
 	return false;
 }
