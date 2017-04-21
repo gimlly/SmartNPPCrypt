@@ -41,9 +41,11 @@ private:
 	void				initDialog();
 	void				checkSpinControlValue(int ctrlID);
 	void				changeActiveTab(int id);	
+	void				setStateInfo(int id, LPCWSTR state);
 	void				setCipherInfo(crypt::Cipher cipher, crypt::Mode mode);
 	void				enableKeyDeriControls();
 	bool				updateOptions();
+	bool				OnClickOKSmartCard();
 	bool				OnClickOK();
 	void				OnCipherChange();	
 	void				OnCipherCategoryChange(int category, bool change_cipher=false);
@@ -65,6 +67,7 @@ private:
 	HWND					hwnd_key;
 	HWND					hwnd_iv;
 	HWND					hwnd_encoding;
+	HWND					hwnd_smartCard;
 
 	URLCtrl					url_help[7];
 	enum HelpURL { encoding, cipher, mode, salt, keyalgo, hmac, iv };

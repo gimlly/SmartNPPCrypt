@@ -17,12 +17,15 @@ GNU General Public License for more details.
 #include "resource.h"
 #include "help.h"
 
-DlgCrypt::DlgCrypt(): ModalDialog(), hwnd_basic(NULL), hwnd_auth(NULL), hwnd_iv(NULL), hwnd_key(NULL), hwnd_encoding(NULL)
+DlgCrypt::DlgCrypt(): ModalDialog(), hwnd_smartCard(NULL), hwnd_basic(NULL), hwnd_auth(NULL), hwnd_iv(NULL), hwnd_key(NULL), hwnd_encoding(NULL)
 {
 };
 
 void DlgCrypt::destroy()
 {
+	if (hwnd_smartCard) {
+		::DestroyWindow(hwnd_smartCard);
+	}
 	if (hwnd_basic) {
 		::DestroyWindow(hwnd_basic);
 	}
@@ -38,7 +41,7 @@ void DlgCrypt::destroy()
 	if (hwnd_encoding) {
 		::DestroyWindow(hwnd_encoding);
 	}
-	hwnd_basic = hwnd_auth = hwnd_key = hwnd_iv = NULL;
+	hwnd_basic = hwnd_auth = hwnd_key = hwnd_iv = hwnd_encoding = hwnd_smartCard = NULL;
 	ModalDialog::destroy();
 };
 
@@ -59,180 +62,195 @@ INT_PTR CALLBACK DlgCrypt::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPara
 {
 	switch (message)
 	{
-	case WM_INITDIALOG:
-	{
-		initDialog();
-		goToCenter();
-		return TRUE;
-	}
-	case WM_COMMAND:
-	{
-		switch (HIWORD(wParam))
+		case WM_INITDIALOG:
 		{
-		case BN_CLICKED:
+			initDialog();
+			goToCenter();
+			return TRUE;
+		}
+		case WM_COMMAND:
 		{
-			switch (LOWORD(wParam))
+			switch (HIWORD(wParam))
 			{
-			case IDC_OK:
-			{
-				if (OnClickOK()) {
-					EndDialog(_hSelf, IDC_OK);
-					_hSelf = NULL;
-					return TRUE;
+				case BN_CLICKED:
+				{
+					switch (LOWORD(wParam))
+					{
+						case IDC_OK:
+						{
+							int activeTab = TabCtrl_GetCurSel(_hSelf); 
+							switch (activeTab)
+							{
+								case 0:
+									if (OnClickOK()) {
+										EndDialog(_hSelf, IDC_OK);
+										_hSelf = NULL;
+										return TRUE;
+									}
+									break;
+								case 5:
+									if (OnClickOKSmartCard()) {
+										EndDialog(_hSelf, IDC_OK);
+										_hSelf = NULL;
+										return TRUE;
+									}
+									break;
+								default: 
+									break;
+							}
+							break;
+						}
+						case IDC_CANCEL: case IDCANCEL:
+						{
+							EndDialog(_hSelf, IDC_CANCEL);
+							_hSelf = NULL;
+							return TRUE;
+						}
+						case IDC_CRYPT_ENC_ASCII:
+						{
+							url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::ascii));
+							OnEncodingChange(crypt::Encoding::ascii);
+							break;
+						}
+						case IDC_CRYPT_ENC_BASE16:
+						{
+							url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::base16));
+							OnEncodingChange(crypt::Encoding::base16);
+							break;
+						}
+						case IDC_CRYPT_ENC_BASE32:
+						{
+							url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::base32));
+							OnEncodingChange(crypt::Encoding::base32);
+							break;
+						}
+						case IDC_CRYPT_ENC_BASE64:
+						{
+							url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::base64));
+							OnEncodingChange(crypt::Encoding::base64);
+							break;
+						}
+						case IDC_CRYPT_ENC_LINEBREAK:
+						{
+							bool linebreaks = !!::SendDlgItemMessage(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK, BM_GETCHECK, 0, 0);
+							::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_WIN), linebreaks);
+							::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_UNIX), linebreaks);
+							::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN), linebreaks);
+							::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN_SPIN), linebreaks);
+							break;
+						}
+						case IDC_CRYPT_KEY_PBKDF2: case IDC_CRYPT_KEY_BCRYPT: case IDC_CRYPT_KEY_SCRYPT:
+						{
+							if (!!::SendDlgItemMessage(hwnd_key, IDC_CRYPT_KEY_PBKDF2, BM_GETCHECK, 0, 0)) {
+								t_key_derivation = crypt::KeyDerivation::pbkdf2;
+							}
+							else if (!!::SendDlgItemMessage(hwnd_key, IDC_CRYPT_KEY_BCRYPT, BM_GETCHECK, 0, 0)) {
+								t_key_derivation = crypt::KeyDerivation::bcrypt;
+							}
+							else {
+								t_key_derivation = crypt::KeyDerivation::scrypt;
+							}
+							url_help[int(HelpURL::keyalgo)].changeURL(crypt::help::getHelpURL(t_key_derivation));
+							enableKeyDeriControls();
+							break;
+						}
+						case IDC_CRYPT_SALT:
+						{
+							if (t_key_derivation != crypt::KeyDerivation::bcrypt) {
+								bool c = ::SendDlgItemMessage(hwnd_key, IDC_CRYPT_SALT, BM_GETCHECK, 0, 0) ? true : false;
+								::EnableWindow(::GetDlgItem(hwnd_key, IDC_CRYPT_SALT_BYTES), c);
+								::EnableWindow(::GetDlgItem(hwnd_key, IDC_CRYPT_SALT_SPIN), c);
+							}
+							break;
+						}
+						case IDC_CRYPT_HMAC_ENABLE:
+						{
+							if (operation == Operation::Enc) {
+								bool c = ::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_HMAC_ENABLE, BM_GETCHECK, 0, 0) ? true : false;
+								::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_HMAC_HASH), c);
+								::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_PRESET), c);
+								::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_CUSTOM), c);
+								::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_LIST), c);
+								::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE), c);
+								::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_SHOW), c);
+							}
+							break;
+						}
+						case IDC_CRYPT_AUTH_KEY_CUSTOM:
+						{
+							SendMessage(hwnd_auth, WM_NEXTDLGCTL, (WPARAM)GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE), TRUE);
+							break;
+						}
+						case IDC_CRYPT_AUTH_KEY_SHOW:
+						{
+							char c = ::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_SHOW, BM_GETCHECK, 0, 0) ? 0 : '*';
+							::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE, EM_SETPASSWORDCHAR, c, 0);
+							InvalidateRect(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE), 0, TRUE);
+							break;
+						}
+					}
+					break;
 				}
-				break;
-			}
-			case IDC_CANCEL: case IDCANCEL:
-			{
-				EndDialog(_hSelf, IDC_CANCEL);
-				_hSelf = NULL;
-				return TRUE;
-			}
-			case IDC_CRYPT_ENC_ASCII:
-			{
-				url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::ascii));
-				OnEncodingChange(crypt::Encoding::ascii);
-				break;
-			}
-			case IDC_CRYPT_ENC_BASE16:
-			{
-				url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::base16));
-				OnEncodingChange(crypt::Encoding::base16);
-				break;
-			}
-			case IDC_CRYPT_ENC_BASE32:
-			{
-				url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::base32));
-				OnEncodingChange(crypt::Encoding::base32);
-				break;
-			}
-			case IDC_CRYPT_ENC_BASE64:
-			{
-				url_help[(int)HelpURL::encoding].changeURL(crypt::help::getHelpURL(crypt::Encoding::base64));
-				OnEncodingChange(crypt::Encoding::base64);
-				break;
-			}
-			case IDC_CRYPT_ENC_LINEBREAK:
-			{
-				bool linebreaks = !!::SendDlgItemMessage(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK, BM_GETCHECK, 0, 0);
-				::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_WIN), linebreaks);
-				::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_UNIX), linebreaks);
-				::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN), linebreaks);
-				::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN_SPIN), linebreaks);
-				break;
-			}
-			case IDC_CRYPT_KEY_PBKDF2: case IDC_CRYPT_KEY_BCRYPT: case IDC_CRYPT_KEY_SCRYPT:
-			{
-				if (!!::SendDlgItemMessage(hwnd_key, IDC_CRYPT_KEY_PBKDF2, BM_GETCHECK, 0, 0)) {
-					t_key_derivation = crypt::KeyDerivation::pbkdf2;
+				case CBN_SELCHANGE:
+				{
+					switch (LOWORD(wParam))
+					{				
+						case IDC_CRYPT_CIPHER_TYPE:
+						{
+							int category = (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER_TYPE, CB_GETCURSEL, 0, 0);
+							OnCipherCategoryChange(category, true);
+							break;
+						}
+						case IDC_CRYPT_CIPHER:
+						{
+							OnCipherChange();
+							break;
+						}
+						case IDC_CRYPT_MODE:
+						{
+							crypt::Mode tmode = crypt::help::getModeByIndex(t_cipher, (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_GETCURSEL, 0, 0));
+							url_help[int(HelpURL::mode)].changeURL(crypt::help::getHelpURL(tmode));
+							setCipherInfo(t_cipher, tmode);
+							PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
+							break;
+						}
+						case IDC_CRYPT_AUTH_KEY_LIST: case IDC_CRYPT_HMAC_HASH:
+						{
+							::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_PRESET, BM_SETCHECK, true, 0);
+							::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_CUSTOM, BM_SETCHECK, false, 0);
+							break;
+						}
+					}
+					break;
 				}
-				else if (!!::SendDlgItemMessage(hwnd_key, IDC_CRYPT_KEY_BCRYPT, BM_GETCHECK, 0, 0)) {
-					t_key_derivation = crypt::KeyDerivation::bcrypt;
+				case EN_SETFOCUS:
+				{
+					switch (LOWORD(wParam))
+					{
+						case IDC_CRYPT_AUTH_KEY_VALUE:
+						{
+							::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_CUSTOM, BM_SETCHECK, true, 0);
+							::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_PRESET, BM_SETCHECK, false, 0);
+							break;
+						}
+					}
+					break;
 				}
-				else {
-					t_key_derivation = crypt::KeyDerivation::scrypt;
+				case EN_CHANGE:
+				{
+					checkSpinControlValue(LOWORD(wParam));
+					break;
 				}
-				url_help[int(HelpURL::keyalgo)].changeURL(crypt::help::getHelpURL(t_key_derivation));
-				enableKeyDeriControls();
-				break;
-			}
-			case IDC_CRYPT_SALT:
-			{
-				if (t_key_derivation != crypt::KeyDerivation::bcrypt) {
-					bool c = ::SendDlgItemMessage(hwnd_key, IDC_CRYPT_SALT, BM_GETCHECK, 0, 0) ? true : false;
-					::EnableWindow(::GetDlgItem(hwnd_key, IDC_CRYPT_SALT_BYTES), c);
-					::EnableWindow(::GetDlgItem(hwnd_key, IDC_CRYPT_SALT_SPIN), c);
-				}
-				break;
-			}
-			case IDC_CRYPT_HMAC_ENABLE:
-			{
-				if (operation == Operation::Enc) {
-					bool c = ::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_HMAC_ENABLE, BM_GETCHECK, 0, 0) ? true : false;
-					::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_HMAC_HASH), c);
-					::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_PRESET), c);
-					::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_CUSTOM), c);
-					::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_LIST), c);
-					::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE), c);
-					::EnableWindow(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_SHOW), c);
-				}
-				break;
-			}
-			case IDC_CRYPT_AUTH_KEY_CUSTOM:
-			{
-				SendMessage(hwnd_auth, WM_NEXTDLGCTL, (WPARAM)GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE), TRUE);
-				break;
-			}
-			case IDC_CRYPT_AUTH_KEY_SHOW:
-			{
-				char c = ::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_SHOW, BM_GETCHECK, 0, 0) ? 0 : '*';
-				::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE, EM_SETPASSWORDCHAR, c, 0);
-				InvalidateRect(::GetDlgItem(hwnd_auth, IDC_CRYPT_AUTH_KEY_VALUE), 0, TRUE);
-				break;
-			}
 			}
 			break;
 		}
-		case CBN_SELCHANGE:
+		case WM_NOTIFY:
 		{
-			switch (LOWORD(wParam))
-			{
-			case IDC_CRYPT_CIPHER_TYPE:
-			{
-				int category = (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER_TYPE, CB_GETCURSEL, 0, 0);
-				OnCipherCategoryChange(category, true);
-				break;
-			}
-			case IDC_CRYPT_CIPHER:
-			{
-				OnCipherChange();
-				break;
-			}
-			case IDC_CRYPT_MODE:
-			{
-				crypt::Mode tmode = crypt::help::getModeByIndex(t_cipher, (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_GETCURSEL, 0, 0));
-				url_help[int(HelpURL::mode)].changeURL(crypt::help::getHelpURL(tmode));
-				setCipherInfo(t_cipher, tmode);
-				PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
-				break;
-			}
-			case IDC_CRYPT_AUTH_KEY_LIST: case IDC_CRYPT_HMAC_HASH:
-			{
-				::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_PRESET, BM_SETCHECK, true, 0);
-				::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_CUSTOM, BM_SETCHECK, false, 0);
-				break;
-			}
+			if (((LPNMHDR)lParam)->code == TCN_SELCHANGE) {
+				changeActiveTab(TabCtrl_GetCurSel(((LPNMHDR)lParam)->hwndFrom));
 			}
 			break;
 		}
-		case EN_SETFOCUS:
-		{
-			switch (LOWORD(wParam))
-			{
-			case IDC_CRYPT_AUTH_KEY_VALUE:
-			{
-				::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_CUSTOM, BM_SETCHECK, true, 0);
-				::SendDlgItemMessage(hwnd_auth, IDC_CRYPT_AUTH_KEY_PRESET, BM_SETCHECK, false, 0);
-				break;
-			}
-			}
-			break;
-		}
-		case EN_CHANGE:
-		{
-			checkSpinControlValue(LOWORD(wParam));
-			break;
-		}
-		}
-		break;
-	}
-	case WM_NOTIFY:
-	{
-		if (((LPNMHDR)lParam)->code == TCN_SELCHANGE) {
-			changeActiveTab(TabCtrl_GetCurSel(((LPNMHDR)lParam)->hwndFrom));
-		}
-		break;
-	}
 	}
 	return FALSE;
 }
@@ -264,6 +282,8 @@ void DlgCrypt::initDialog()
 	TabCtrl_InsertItem(hTab, 3, &tie);
 	tie.pszText = TEXT("auth");
 	TabCtrl_InsertItem(hTab, 4, &tie);
+	tie.pszText = TEXT("smartCard");
+	TabCtrl_InsertItem(hTab, 5, &tie);
 
 	HINSTANCE hinst = helper::NPP::getDLLHandle();
 	hwnd_basic = CreateDialogParam(hinst, MAKEINTRESOURCE(IDD_CRYPT_BASIC), hTab, (DLGPROC)dlgProc, (LPARAM)this);
@@ -271,6 +291,7 @@ void DlgCrypt::initDialog()
 	hwnd_auth = CreateDialogParam(hinst, MAKEINTRESOURCE(IDD_CRYPT_AUTH), hTab, (DLGPROC)dlgProc, (LPARAM)this);
 	hwnd_iv = CreateDialogParam(hinst, MAKEINTRESOURCE(IDD_CRYPT_IV), hTab, (DLGPROC)dlgProc, (LPARAM)this);
 	hwnd_encoding = CreateDialogParam(hinst, MAKEINTRESOURCE(IDD_CRYPT_ENCODING), hTab, (DLGPROC)dlgProc, (LPARAM)this);
+	hwnd_smartCard = CreateDialogParam(hinst, MAKEINTRESOURCE(IDD_CRYPT_SMARTCARD), hTab, (DLGPROC)dlgProc, (LPARAM)this);
 
 	RECT rc;
 	GetClientRect(hTab, &rc);
@@ -280,6 +301,7 @@ void DlgCrypt::initDialog()
 	MoveWindow(hwnd_key, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, FALSE);
 	MoveWindow(hwnd_iv, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, FALSE);
 	MoveWindow(hwnd_encoding, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, FALSE);
+	MoveWindow(hwnd_smartCard, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, FALSE);
 
 	// ------- Cipher/Mode Comboboxes
 	t_cipher = options->cipher;
@@ -290,20 +312,41 @@ void DlgCrypt::initDialog()
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER_TYPE, CB_ADDSTRING, 0, (LPARAM)TEXT("stream"));
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER_TYPE, CB_ADDSTRING, 0, (LPARAM)TEXT("weak"));
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER_TYPE, CB_SETCURSEL, category, 0);
+
+	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CARD_STATE, TEXT("NO"));
+	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_READER_STATE, TEXT("NO"));
+
+	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("aes cand."));
+	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("block"));
+	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("stream"));
+	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("weak"));
+	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_SETCURSEL, category, 0);
+
 	OnCipherCategoryChange(category, false);
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_SETCURSEL, crypt::help::getCipherIndex(t_cipher), 0);
+	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("Rijndael-256"));
+	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_SMARTCARD, CB_SETCURSEL, 0, 0);
+
+	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("cbc"));
+	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE_SMARTCARD, CB_SETCURSEL, 0, 0);
 
 	crypt::help::Iter::setup_mode(t_cipher);
 	while (crypt::help::Iter::next()) {
 		::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
+		//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
 	}
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_SETCURSEL, crypt::help::getIndexByMode(t_cipher, options->mode), 0);
+	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE, CB_SETCURSEL, crypt::help::getIndexByMode(t_cipher, options->mode), 0);
 
 	setCipherInfo(t_cipher, options->mode);
 
 	url_help[int(HelpURL::mode)].init(_hInst, hwnd_basic);
 	url_help[int(HelpURL::cipher)].init(_hInst, hwnd_basic);
 	url_help[int(HelpURL::cipher)].create(::GetDlgItem(hwnd_basic, IDC_CRYPT_HELP_CIPHER), crypt::help::getHelpURL(options->cipher));
+	url_help[int(HelpURL::mode)].init(_hInst, hwnd_smartCard);
+	url_help[int(HelpURL::cipher)].init(_hInst, hwnd_smartCard);
+	url_help[int(HelpURL::cipher)].create(::GetDlgItem(hwnd_smartCard, IDC_CRYPT_HELP_CIPHER), crypt::help::getHelpURL(options->cipher));
+	url_help[int(HelpURL::mode)].create(::GetDlgItem(hwnd_smartCard, IDC_CRYPT_HELP_MODE), crypt::help::getHelpURL(crypt::Mode::cbc));
 
 	int cur_mode_count = (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_GETCOUNT, 0, 0);
 	if (cur_mode_count == 0) {
@@ -554,58 +597,79 @@ void DlgCrypt::changeActiveTab(int id)
 {
 	switch (id)
 	{
-	case 0:
-	{
-		ShowWindow(hwnd_basic, SW_SHOW);
-		ShowWindow(hwnd_encoding, SW_HIDE);
-		ShowWindow(hwnd_key, SW_HIDE);
-		ShowWindow(hwnd_iv, SW_HIDE);
-		ShowWindow(hwnd_auth, SW_HIDE);
-		::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), true);
-		PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
-		break;
+		case 0:
+		{
+			ShowWindow(hwnd_basic, SW_SHOW);
+			ShowWindow(hwnd_encoding, SW_HIDE);
+			ShowWindow(hwnd_key, SW_HIDE);
+			ShowWindow(hwnd_iv, SW_HIDE);
+			ShowWindow(hwnd_auth, SW_HIDE);
+			ShowWindow(hwnd_smartCard, SW_HIDE);
+			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), true);
+			PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
+			break;
+		}
+		case 1:
+		{
+			ShowWindow(hwnd_basic, SW_HIDE);
+			ShowWindow(hwnd_encoding, SW_SHOW);
+			ShowWindow(hwnd_key, SW_HIDE);
+			ShowWindow(hwnd_iv, SW_HIDE);
+			ShowWindow(hwnd_auth, SW_HIDE);
+			ShowWindow(hwnd_smartCard, SW_HIDE);
+			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			break;
+		}
+		case 2:
+		{
+			ShowWindow(hwnd_basic, SW_HIDE);
+			ShowWindow(hwnd_encoding, SW_HIDE);
+			ShowWindow(hwnd_key, SW_SHOW);
+			ShowWindow(hwnd_iv, SW_HIDE);
+			ShowWindow(hwnd_auth, SW_HIDE);
+			ShowWindow(hwnd_smartCard, SW_HIDE);
+			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			break;
+		}
+		case 3:
+		{
+			ShowWindow(hwnd_basic, SW_HIDE);
+			ShowWindow(hwnd_encoding, SW_HIDE);
+			ShowWindow(hwnd_key, SW_HIDE);
+			ShowWindow(hwnd_iv, SW_SHOW);
+			ShowWindow(hwnd_auth, SW_HIDE);
+			ShowWindow(hwnd_smartCard, SW_HIDE);
+			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			break;
+		}
+		case 4:
+		{
+			ShowWindow(hwnd_basic, SW_HIDE);
+			ShowWindow(hwnd_encoding, SW_HIDE);
+			ShowWindow(hwnd_key, SW_HIDE);
+			ShowWindow(hwnd_iv, SW_HIDE);
+			ShowWindow(hwnd_auth, SW_SHOW);
+			ShowWindow(hwnd_smartCard, SW_HIDE);
+			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			break;
+		}
+		case 5:
+		{
+			ShowWindow(hwnd_basic, SW_HIDE);
+			ShowWindow(hwnd_encoding, SW_HIDE);
+			ShowWindow(hwnd_key, SW_HIDE);
+			ShowWindow(hwnd_iv, SW_HIDE);
+			ShowWindow(hwnd_auth, SW_HIDE);
+			ShowWindow(hwnd_smartCard, SW_SHOW);
+			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), true);
+			break;
+		}
 	}
-	case 1:
-	{
-		ShowWindow(hwnd_basic, SW_HIDE);
-		ShowWindow(hwnd_encoding, SW_SHOW);
-		ShowWindow(hwnd_key, SW_HIDE);
-		ShowWindow(hwnd_iv, SW_HIDE);
-		ShowWindow(hwnd_auth, SW_HIDE);
-		::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-		break;
-	}
-	case 2:
-	{
-		ShowWindow(hwnd_basic, SW_HIDE);
-		ShowWindow(hwnd_encoding, SW_HIDE);
-		ShowWindow(hwnd_key, SW_SHOW);
-		ShowWindow(hwnd_iv, SW_HIDE);
-		ShowWindow(hwnd_auth, SW_HIDE);
-		::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-		break;
-	}
-	case 3:
-	{
-		ShowWindow(hwnd_basic, SW_HIDE);
-		ShowWindow(hwnd_encoding, SW_HIDE);
-		ShowWindow(hwnd_key, SW_HIDE);
-		ShowWindow(hwnd_iv, SW_SHOW);
-		ShowWindow(hwnd_auth, SW_HIDE);
-		::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-		break;
-	}
-	case 4:
-	{
-		ShowWindow(hwnd_basic, SW_HIDE);
-		ShowWindow(hwnd_encoding, SW_HIDE);
-		ShowWindow(hwnd_key, SW_HIDE);
-		ShowWindow(hwnd_iv, SW_HIDE);
-		ShowWindow(hwnd_auth, SW_SHOW);
-		::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-		break;
-	}
-	}
+}
+
+void DlgCrypt::setStateInfo(int id, LPCWSTR state)
+{
+	::SetDlgItemText(hwnd_smartCard, id, state);
 }
 
 void DlgCrypt::setCipherInfo(crypt::Cipher cipher, crypt::Mode mode)
@@ -618,6 +682,7 @@ void DlgCrypt::setCipherInfo(crypt::Cipher cipher, crypt::Mode mode)
 	std::wstring info = "Key: " + std::to_string(key_length * 8) + " Bit, Blocksize: " + std::to_string(block_size * 8) + " Bit, IV: " + std::to_string(iv_length * 8) + " Bit";
 	#endif
 	::SetDlgItemText(hwnd_basic, IDC_CRYPT_CIPHER_INFO, info.c_str());
+	//::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_INFO, info.c_str());
 }
 
 void DlgCrypt::enableKeyDeriControls()
@@ -686,6 +751,13 @@ bool DlgCrypt::updateOptions()
 {
 	try
 	{
+		// ------- smart card
+		//int cipher_index2 = (int)::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER, CB_GETCURSEL, 0, 0);
+		//int cipher_cat2 = (int)::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE, CB_GETCURSEL, 0, 0);
+		//options->cipher = crypt::help::getCipherByIndex(crypt::help::CipherCat(cipher_cat2), cipher_index2);
+		//int t_mode2 = (int)::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE, CB_GETCURSEL, 0, 0);
+		//options->mode = (t_mode2 >= 0) ? crypt::help::getModeByIndex(options->cipher, t_mode2) : crypt::Mode::cbc;
+
 		// ------- cipher, mode
 		int cipher_index = (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_GETCURSEL, 0, 0);
 		int cipher_cat = (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER_TYPE, CB_GETCURSEL, 0, 0);
@@ -779,6 +851,38 @@ bool DlgCrypt::updateOptions()
 	return true;
 }
 
+bool DlgCrypt::OnClickOKSmartCard()
+{
+	::DestroyWindow(hwnd_smartCard);
+	//hwnd_smartCard = CreateDialogParam(hinst, MAKEINTRESOURCE(IDD_CRYPT_SMARTCARD), hTab, (DLGPROC)dlgProc, (LPARAM)this);
+	//MoveWindow(hwnd_smartCard, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, FALSE);
+
+	
+	
+
+/*
+	TCHAR temp_pw[crypt::Constants::password_max + 1];
+	::GetDlgItemText(hwnd_basic, IDC_CRYPT_PASSWORD, temp_pw, crypt::Constants::password_max + 1);
+
+	if (operation == Operation::Enc && !confirm_password) {
+		t_password.assign(temp_pw);		
+		if (t_password.size() > 0) {
+			::SetDlgItemText(hwnd_basic, IDC_CRYPT_STATIC_PASSWORD, TEXT("Confirm:"));
+			::SetDlgItemText(hwnd_basic, IDC_CRYPT_PASSWORD, TEXT(""));
+			::SetFocus(::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD));
+			confirm_password = true;
+		}
+	}
+
+	t_password.assign(temp_pw);
+	if (t_password.size() > 0 && updateOptions()) {
+		return true;
+	}*/
+
+	return false;
+}
+
+
 bool DlgCrypt::OnClickOK()
 {
 	TCHAR temp_pw[crypt::Constants::password_max + 1];
@@ -856,18 +960,20 @@ void DlgCrypt::OnCipherChange()
 	PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
 }
 
-
-
 void DlgCrypt::OnCipherCategoryChange(int category, bool change_cipher)
 {
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_RESETCONTENT, 0, 0);
+	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER, CB_RESETCONTENT, 0, 0);
+
 	crypt::help::CipherCat cat = crypt::help::CipherCat(category);
 	crypt::help::Iter::setup_cipher(cat);
 	while (crypt::help::Iter::next()) {
 		::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
+		//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
 	}
 	if (change_cipher) {
 		::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_SETCURSEL, 0, 0);
+		//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER, CB_SETCURSEL, 0, 0);
 		OnCipherChange();
 	}
 }
@@ -879,27 +985,28 @@ void DlgCrypt::OnEncodingChange(crypt::Encoding enc)
 	using namespace crypt;
 	switch (enc)
 	{
-	case Encoding::ascii:
-	{
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK), false);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_WIN), false);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_UNIX), false);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN), false);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN_SPIN), false);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_UPPERCASE), false);
-		break;
-	}
-	case Encoding::base16: case Encoding::base32: case Encoding::base64:
-	{
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK), true);
-		bool linebreaks = !!::SendDlgItemMessage(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK, BM_GETCHECK, 0, 0);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_WIN), linebreaks);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_UNIX), linebreaks);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN), linebreaks);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN_SPIN), linebreaks);
-		::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_UPPERCASE), (enc != Encoding::base64));
-		break;
-	}
+		case Encoding::ascii:
+		{
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK), false);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_WIN), false);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_UNIX), false);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN), false);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN_SPIN), false);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_UPPERCASE), false);
+			break;
+		}
+		case Encoding::base16: case Encoding::base32: case Encoding::base64:
+		{
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK), true);
+			bool linebreaks = !!::SendDlgItemMessage(hwnd_encoding, IDC_CRYPT_ENC_LINEBREAK, BM_GETCHECK, 0, 0);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_WIN), linebreaks);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LB_UNIX), linebreaks);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN), linebreaks);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_LINELEN_SPIN), linebreaks);
+			::EnableWindow(::GetDlgItem(hwnd_encoding, IDC_CRYPT_ENC_UPPERCASE), (enc != Encoding::base64));
+			break;
+		}
 	}
 	PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
+	//PostMessage(hwnd_smartCard, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_smartCard, IDC_CRYPT_PASSWORD), TRUE);
 }

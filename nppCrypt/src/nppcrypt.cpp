@@ -348,11 +348,13 @@ void EncryptDlg()
 		size_t		data_length;
 		size_t		sel_start;
 
-		if (!helper::Scintilla::getSelection(&pData, &data_length, &sel_start)) {
+		if (!helper::Scintilla::getSelection(&pData, &data_length, &sel_start)) 
+		{
 			return;
 		}
 	
-		if(dlg_crypt.doDialog(DlgCrypt::Operation::Enc, &current.crypt, helper::Buffer::isCurrent8Bit())) {
+		if(dlg_crypt.doDialog(DlgCrypt::Operation::Enc, &current.crypt, helper::Buffer::isCurrent8Bit())) 
+		{
 			CryptHeaderWriter			header(current.crypt);
 			std::basic_string<byte>		buffer;
 
