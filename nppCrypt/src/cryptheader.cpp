@@ -394,6 +394,12 @@ void CryptHeaderWriter::create()
 		}
 		out << "/>" << linebreak;
 	}
+	if (options.isSmartCard)
+	{
+		out << "<SmartCardKey value=\"";
+		out << options.keyForSmartCard;
+		out << "\"/>" << linebreak;
+	}
 	out << "<key algorithm=\"" << crypt::help::getString(options.key.algorithm);
 	switch (options.key.algorithm)
 	{

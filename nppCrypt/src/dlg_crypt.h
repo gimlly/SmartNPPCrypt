@@ -55,13 +55,14 @@ private:
 	Operation				operation;
 	const string*			filename;
 	bool					no_bin_output;
+	bool					isSmartCard;
 	crypt::Options::Crypt*	options;
 
 	bool					confirm_password;	
 	crypt::Cipher			t_cipher;
 	crypt::KeyDerivation	t_key_derivation;
 	string					t_password;
-	string					pin;
+	string					t_keyForSmartCard;
 
 	HWND					hwnd_basic;
 	HWND					hwnd_auth;

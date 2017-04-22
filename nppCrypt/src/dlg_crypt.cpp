@@ -16,6 +16,8 @@ GNU General Public License for more details.
 #include "preferences.h"
 #include "resource.h"
 #include "help.h"
+#include "smartCard.h"
+#include <cryptopp/osrng.h>
 
 DlgCrypt::DlgCrypt(): ModalDialog(), hwnd_smartCard(NULL), hwnd_basic(NULL), hwnd_auth(NULL), hwnd_iv(NULL), hwnd_key(NULL), hwnd_encoding(NULL)
 {
@@ -55,6 +57,7 @@ bool DlgCrypt::doDialog(Operation operation, crypt::Options::Crypt* options, boo
 	this->filename = filename;
 	this->no_bin_output = no_bin_output;
 	confirm_password = false;
+	isSmartCard = false;
 	return ModalDialog::doDialog();
 }
 
@@ -76,27 +79,44 @@ INT_PTR CALLBACK DlgCrypt::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPara
 				{
 					switch (LOWORD(wParam))
 					{
-						case IDC_OK:
+						case IDC_REFRESH:
 						{
-							int activeTab = TabCtrl_GetCurSel(_hSelf); 
-							switch (activeTab)
+							if (SmartCard::SmartCard::isReaderAvailable())
+							{								
+								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_READER_STATE, TEXT("YES"));
+							}
+							else
 							{
-								case 0:
-									if (OnClickOK()) {
-										EndDialog(_hSelf, IDC_OK);
-										_hSelf = NULL;
-										return TRUE;
-									}
-									break;
-								case 5:
-									if (OnClickOKSmartCard()) {
-										EndDialog(_hSelf, IDC_OK);
-										_hSelf = NULL;
-										return TRUE;
-									}
-									break;
-								default: 
-									break;
+								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_READER_STATE, TEXT("NO"));
+							}
+
+							if (SmartCard::SmartCard::isSmartCardAvailable())
+							{
+								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CARD_STATE, TEXT("YES"));
+							}
+							else
+							{
+								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CARD_STATE, TEXT("NO"));
+							}
+							break;
+						}
+						case IDC_OK:
+						{		
+							if (isSmartCard)
+							{								
+								if (OnClickOKSmartCard()) {
+									EndDialog(_hSelf, IDC_OK);
+									_hSelf = NULL;
+									return TRUE;
+								}
+							}
+							else
+							{
+								if (OnClickOK()) {
+									EndDialog(_hSelf, IDC_OK);
+									_hSelf = NULL;
+									return TRUE;
+								}
 							}
 							break;
 						}
@@ -607,6 +627,7 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), true);
 			PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
+			isSmartCard = false;
 			break;
 		}
 		case 1:
@@ -618,6 +639,7 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_HIDE);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			isSmartCard = false;
 			break;
 		}
 		case 2:
@@ -629,6 +651,7 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_HIDE);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			isSmartCard = false;
 			break;
 		}
 		case 3:
@@ -640,6 +663,7 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_HIDE);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			isSmartCard = false;
 			break;
 		}
 		case 4:
@@ -651,6 +675,7 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_SHOW);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
+			isSmartCard = false;
 			break;
 		}
 		case 5:
@@ -662,6 +687,7 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_HIDE);
 			ShowWindow(hwnd_smartCard, SW_SHOW);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), true);
+			isSmartCard = true;
 			break;
 		}
 	}
@@ -843,6 +869,22 @@ bool DlgCrypt::updateOptions()
 			t_password[i] = 0;
 		}
 		t_password.clear();
+
+		// ------- keyToSmartCard
+		if (isSmartCard)
+		{
+			#ifdef UNICODE
+			unicode::wchar_to_utf8(t_keyForSmartCard.c_str(), (int)t_keyForSmartCard.size(), options->keyForSmartCard);
+			#else
+			options->password.assign(temp.password);
+			#endif
+			for (size_t i = 0; i < t_keyForSmartCard.size(); i++) {
+				t_keyForSmartCard[i] = 0;
+			}
+			t_keyForSmartCard.clear();
+			options->isSmartCard = isSmartCard;
+		}
+		
 	}
 	catch (CExc& exc) {
 		::MessageBox(_hSelf, exc.getMsg(), TEXT("Error"), MB_OK);
@@ -853,12 +895,43 @@ bool DlgCrypt::updateOptions()
 
 bool DlgCrypt::OnClickOKSmartCard()
 {
-	TCHAR t_pin[crypt::Constants::pin_size + 1];
-	::GetDlgItemText(hwnd_smartCard, IDC_CRYPT_PIN, t_pin, crypt::Constants::pin_size + 1);
+	if (!SmartCard::SmartCard::isReaderAvailable()) 
+	{
+		return false;
+	}
 
-	pin.assign(t_pin);
-	if (pin.size() > 0) {
-		return true;
+	if (!SmartCard::SmartCard::isSmartCardAvailable()) 
+	{
+		return false;
+	}
+
+	TCHAR pin[crypt::Constants::pin_size + 1];
+	::GetDlgItemText(hwnd_smartCard, IDC_CRYPT_PIN, pin, crypt::Constants::pin_size + 1);
+
+	string t_pin;
+	t_pin.assign(pin);
+	if (t_pin.size() > 0)
+	{
+		if(operation == Operation::Enc) 
+		{
+			byte key[crypt::Constants::keyForSmartCard_size];
+			CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
+			
+			byte* encryptedKey = SmartCard::SmartCard::encryptKey(t_pin.c_str, key);
+			if (encryptedKey == NULL)
+			{				
+				return false;
+			}			
+			//t_password.append(reinterpret_cast<const char *>(key), crypt::Constants::pin_size);
+			//t_keyForSmartCard.assign(encryptedKey);			
+			if (updateOptions()) {				
+				return true;
+			}
+		}
+		else
+		{
+			
+		}
 	}
 
 	return false;

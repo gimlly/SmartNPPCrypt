@@ -51,32 +51,33 @@ namespace crypt
 
 	namespace Constants
 	{
-		const int password_max =		512;			// password: max number of characters
-		const int salt_max =			512;			// max salt bytes
-		const int pbkdf2_default_hash = 1;				// pbkdf2: default hash ( see enum Hash )
-		const int pbkdf2_iter_default = 5000;			// pbkdf2: default iterations
-		const int pbkdf2_iter_min =		1;				// pbkdf2: min iterations 
-		const int pbkdf2_iter_max =		10000000;		// pbkdf2: max iterations
-		const int bcrypt_iter_default = 8;				// bcrypt: default iterations (2^x)
-		const int bcrypt_iter_min =		4;				// bcrypt: min iterations (2^x)
-		const int bcrypt_iter_max =		32;				// bcrypt: max iterations (2^x)
-		const int scrypt_N_default =	14;				// scrypt: default N (2^x)
-		const int scrypt_N_min =		2;				// scrypt: min N (2^x)
-		const int scrypt_N_max =		32;				// scrypt: max N (2^x)
-		const int scrypt_r_default =	8;				// scrypt: default r
-		const int scrypt_r_min =		1;				// scrypt: min r
-		const int scrypt_r_max =		256;			// scrypt: max r
-		const int scrypt_p_default =	1;				// scrypt: default p
-		const int scrypt_p_min =		1;				// scrypt: min r
-		const int scrypt_p_max =		256;			// scrypt: max r
-		const int gcm_iv_length =		16;				// IV-Length for gcm mode (aes)
-		const int ccm_iv_length =		8;				// IV-Length for ccm mode (aes), possible values: 7-13
-		const int rand_char_max =		4096;			// max number of random chars [getRandom()]
-		const int rand_char_bufsize =	1024;			// buffersize of getRandom()
-		const int gcm_tag_size =		16;
-		const int ccm_tag_size =		16;
-		const int eax_tag_size =		16;
-		const int pin_size =			10;
+		const int password_max =		 512;			// password: max number of characters
+		const int salt_max =			 512;			// max salt bytes
+		const int pbkdf2_default_hash =  1;				// pbkdf2: default hash ( see enum Hash )
+		const int pbkdf2_iter_default =  5000;			// pbkdf2: default iterations
+		const int pbkdf2_iter_min =		 1;				// pbkdf2: min iterations 
+		const int pbkdf2_iter_max =		 10000000;		// pbkdf2: max iterations
+		const int bcrypt_iter_default =  8;				// bcrypt: default iterations (2^x)
+		const int bcrypt_iter_min =		 4;				// bcrypt: min iterations (2^x)
+		const int bcrypt_iter_max =		 32;				// bcrypt: max iterations (2^x)
+		const int scrypt_N_default =	 14;				// scrypt: default N (2^x)
+		const int scrypt_N_min =		 2;				// scrypt: min N (2^x)
+		const int scrypt_N_max =		 32;				// scrypt: max N (2^x)
+		const int scrypt_r_default =	 8;				// scrypt: default r
+		const int scrypt_r_min =		 1;				// scrypt: min r
+		const int scrypt_r_max =		 256;			// scrypt: max r
+		const int scrypt_p_default =	 1;				// scrypt: default p
+		const int scrypt_p_min =		 1;				// scrypt: min r
+		const int scrypt_p_max =		 256;			// scrypt: max r
+		const int gcm_iv_length =		 16;				// IV-Length for gcm mode (aes)
+		const int ccm_iv_length =		 8;				// IV-Length for ccm mode (aes), possible values: 7-13
+		const int rand_char_max =		 4096;			// max number of random chars [getRandom()]
+		const int rand_char_bufsize =	 1024;			// buffersize of getRandom()
+		const int gcm_tag_size =		 16;
+		const int ccm_tag_size =		 16;
+		const int eax_tag_size =		 16;
+		const int pin_size =			 10;
+		const int keyForSmartCard_size = 32;
 	};
 
 	namespace Options
@@ -94,6 +95,8 @@ namespace crypt
 			crypt::Mode				mode;
 			crypt::IV				iv;
 			std::string				password;
+			std::string				keyForSmartCard;
+			bool					isSmartCard;
 
 			struct Key
 			{

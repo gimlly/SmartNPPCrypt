@@ -176,6 +176,7 @@
 #define IDC_CRYPT_CIPHER_SMARTCARD				1059
 #define IDC_CRYPT_MODE_SMARTCARD				1060
 #define IDC_CRYPT_CIPHER_TYPE_SMARTCARD			1061
+#define IDC_REFRESH								1062
 #define IDC_STATIC								-1
 
 // Next default values for new objects
