@@ -920,15 +920,21 @@ bool DlgCrypt::OnClickOKSmartCard()
 																0x31, 0x31 };
 			//CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
 			
-			int length_of_encrypted_key = 0;
+			int length_of_encrypted_key = 32;
 			byte* encryptedKey = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), t_pin.size(), key, crypt::Constants::keyForSmartCard_size, &length_of_encrypted_key);
 			if (encryptedKey == NULL)
 			{				
 				return false;
 			}			
 
-			t_password.assign(key);
-			t_keyForSmartCard.assign(encryptedKey);			
+			#ifdef UNICODE
+			unicode::utf8_to_wchar((const char*)key, crypt::Constants::keyForSmartCard_size, t_password);
+			unicode::utf8_to_wchar((const char*)encryptedKey, length_of_encrypted_key, t_keyForSmartCard);
+			#else
+			t_password.assign((const char*)key, crypt::Constants::keyForSmartCard_size);
+			t_keyForSmartCard.assign((const char*)encryptedKey, length_of_encrypted_key);
+			#endif
+		
 			if (updateOptions()) {				
 				return true;
 			}
