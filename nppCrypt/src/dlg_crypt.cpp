@@ -914,16 +914,21 @@ bool DlgCrypt::OnClickOKSmartCard()
 	{
 		if(operation == Operation::Enc) 
 		{
-			byte key[crypt::Constants::keyForSmartCard_size];
-			CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
+			byte key[crypt::Constants::keyForSmartCard_size] = {0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 
+																0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 
+																0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 
+																0x31, 0x31 };
+			//CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
 			
-			byte* encryptedKey = SmartCard::SmartCard::encryptKey(t_pin.c_str, key);
+			int length_of_encrypted_key = 0;
+			byte* encryptedKey = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), t_pin.size(), key, crypt::Constants::keyForSmartCard_size, &length_of_encrypted_key);
 			if (encryptedKey == NULL)
 			{				
 				return false;
 			}			
-			//t_password.append(reinterpret_cast<const char *>(key), crypt::Constants::pin_size);
-			//t_keyForSmartCard.assign(encryptedKey);			
+
+			t_password.assign(key);
+			t_keyForSmartCard.assign(encryptedKey);			
 			if (updateOptions()) {				
 				return true;
 			}

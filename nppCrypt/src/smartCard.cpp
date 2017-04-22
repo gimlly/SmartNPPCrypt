@@ -10,12 +10,12 @@ bool SmartCard::SmartCard::isSmartCardAvailable()
 	return true;
 }
 
-byte* SmartCard::SmartCard::encryptKey(byte* pin, byte* key)
+byte* SmartCard::SmartCard::encryptKey(byte* pin, int pin_length, byte* key, int key_length, int* encryptedKey_length)
 {
 	return key;
 }
 
-byte* SmartCard::SmartCard::decryptKey(byte* pin, byte* encryptedKey)
+byte* SmartCard::SmartCard::decryptKey(byte* pin, int pin_length, byte* encryptedKey, int encryptKey_length, int* decryptedKey_length)
 {
 	return encryptedKey;
 }

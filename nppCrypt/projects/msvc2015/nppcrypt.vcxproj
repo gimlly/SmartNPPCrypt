@@ -38,6 +38,7 @@
     <ClCompile Include="..\..\src\keccak\KeccakSponge.cpp" />
     <ClCompile Include="..\..\src\npp\ModalDialog.cpp" />
     <ClCompile Include="..\..\src\npp\StaticDialog.cpp" />
+    <ClCompile Include="..\..\src\smartCard.cpp" />
     <ClCompile Include="..\..\src\unicode.cpp" />
     <ClCompile Include="..\..\src\exception.cpp" />
     <ClCompile Include="..\..\src\cryptheader.cpp" />
@@ -71,6 +72,7 @@
     <ClInclude Include="..\..\src\npp\dockingResource.h" />
     <ClInclude Include="..\..\src\npp\ModalDialog.h" />
     <ClInclude Include="..\..\src\npp\StaticDialog.h" />
+    <ClInclude Include="..\..\src\smartCard.h" />
     <ClInclude Include="..\..\src\unicode.h" />
     <ClInclude Include="..\..\src\exception.h" />
     <ClInclude Include="..\..\src\cryptheader.h" />
