@@ -12,8 +12,8 @@ namespace SmartCard
 	public:
 		static bool  isReaderAvailable();
 		static bool  isSmartCardAvailable();
-		static byte* encryptKey(byte* pin, byte* key);
-		static byte* decryptKey(byte* pin, byte* encryptedKey);
+		static byte* encryptKey(byte* pin, int pin_length, byte* key, int key_length, &encryptedKey_length);
+		static byte* decryptKey(byte* pin, int pin_length, byte* encryptKey, int encryptKey_length, &decryptedKey_length);
 	};
 };
 
