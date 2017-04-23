@@ -55,10 +55,10 @@ private:
 	Operation				operation;
 	const string*			filename;
 	bool					no_bin_output;
-	bool					isSmartCard;
 	crypt::Options::Crypt*	options;
 
-	bool					confirm_password;	
+	bool					confirm_password;
+	bool					isSmartCard;
 	crypt::Cipher			t_cipher;
 	crypt::KeyDerivation	t_key_derivation;
 	string					t_password;

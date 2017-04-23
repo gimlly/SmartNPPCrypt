@@ -62,6 +62,7 @@ public:
 		header_hmac_key, 
 		header_salt, 
 		header_iv, 
+		header_smartCard_keyValue,
 		header_cipher, 
 		header_mode, 
 		header_encoding, 
