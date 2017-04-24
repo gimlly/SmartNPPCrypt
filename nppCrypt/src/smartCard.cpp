@@ -13,15 +13,11 @@ LONG SmartCard::SmartCard::sendADPDU(byte command, byte * data, size_t dataSize,
 	apdu[2] = apdu[3] = 0x00;
 	apdu[3] = (byte)dataSize;
 
-
 	for (size_t count = 0; count < dataSize; count++) {
 		apdu[count + 5] = data[count];
 	}
 
-
-	returnValue = SCardTransmit(hCard, &pioSendPci, apdu, dataSize+4, NULL, returnData, &rDataLen);
-
-
+	returnValue = SCardTransmit(hCard, &pioSendPci, apdu, dataSize + 4, NULL, returnData, &rDataLen);
 	return returnValue;
 }
 
@@ -90,7 +86,7 @@ bool SmartCard::SmartCard::isSmartCardAvailable()
 	return 1;
 }
 
-int SmartCard::SmartCard::encryptKey(byte * pin, int pin_length, byte * key, int key_length, int * encryptedKey_length, byte * encrypted) {
+int SmartCard::SmartCard::encryptKey(byte * pin, int pin_length, byte * key, int key_length, byte * encrypted, int * encryptedKey_length) {
 
 	LONG status;
 	SCARDHANDLE hCard;

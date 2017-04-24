@@ -7,6 +7,11 @@
 
 namespace SmartCard
 {
+	namespace Constants
+	{
+
+	};
+
 	class SmartCard
 	{
 	private: 
