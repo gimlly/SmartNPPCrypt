@@ -19,6 +19,8 @@ GNU General Public License for more details.
 #include "smartCard.h"
 #include <cryptopp/osrng.h>
 
+#define TEST_KEY
+
 DlgCrypt::DlgCrypt(): ModalDialog(), hwnd_smartCard(NULL), hwnd_basic(NULL), hwnd_auth(NULL), hwnd_iv(NULL), hwnd_key(NULL), hwnd_encoding(NULL)
 {
 };
@@ -57,7 +59,6 @@ bool DlgCrypt::doDialog(Operation operation, crypt::Options::Crypt* options, boo
 	this->filename = filename;
 	this->no_bin_output = no_bin_output;
 	confirm_password = false;
-	isSmartCard = false;
 	return ModalDialog::doDialog();
 }
 
@@ -639,7 +640,6 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_HIDE);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-			isSmartCard = false;
 			break;
 		}
 		case 2:
@@ -651,7 +651,6 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_HIDE);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-			isSmartCard = false;
 			break;
 		}
 		case 3:
@@ -663,7 +662,6 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_HIDE);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-			isSmartCard = false;
 			break;
 		}
 		case 4:
@@ -675,7 +673,6 @@ void DlgCrypt::changeActiveTab(int id)
 			ShowWindow(hwnd_auth, SW_SHOW);
 			ShowWindow(hwnd_smartCard, SW_HIDE);
 			::EnableWindow(::GetDlgItem(_hSelf, IDC_OK), false);
-			isSmartCard = false;
 			break;
 		}
 		case 5:
@@ -871,7 +868,7 @@ bool DlgCrypt::updateOptions()
 		t_password.clear();
 
 		// ------- keyToSmartCard
-		if (isSmartCard)
+		if (isSmartCard && operation == Operation::Enc)
 		{
 			#ifdef UNICODE
 			unicode::wchar_to_utf8(t_keyForSmartCard.c_str(), (int)t_keyForSmartCard.size(), options->keyForSmartCard);
@@ -882,7 +879,7 @@ bool DlgCrypt::updateOptions()
 				t_keyForSmartCard[i] = 0;
 			}
 			t_keyForSmartCard.clear();
-			options->isSmartCard = isSmartCard;
+			options->isSmartCard = true;
 		}
 		
 	}
@@ -914,28 +911,55 @@ bool DlgCrypt::OnClickOKSmartCard()
 	{
 		if(operation == Operation::Enc) 
 		{
+			#ifdef TEST_KEY
 			byte key[crypt::Constants::keyForSmartCard_size] = {0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 
 																0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 
 																0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 
 																0x31, 0x31 };
-			//CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
-			
-			int length_of_encrypted_key = 0;
-			byte* encryptedKey = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), t_pin.size(), key, crypt::Constants::keyForSmartCard_size, &length_of_encrypted_key);
+			#else
+			byte key[crypt::Constants::keyForSmartCard_size];
+			CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
+			#endif
+			int length_of_encrypted_key = 32;
+			byte* encryptedKey = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), (int)(t_pin.size()), key, crypt::Constants::keyForSmartCard_size, &length_of_encrypted_key);
 			if (encryptedKey == NULL)
 			{				
 				return false;
 			}			
 
-			t_password.assign(key);
-			t_keyForSmartCard.assign(encryptedKey);			
+			#ifdef UNICODE
+			unicode::utf8_to_wchar((const char*)key, crypt::Constants::keyForSmartCard_size, t_password);
+			unicode::utf8_to_wchar((const char*)encryptedKey, length_of_encrypted_key, t_keyForSmartCard);
+			#else
+			t_password.assign((const char*)key, crypt::Constants::keyForSmartCard_size);
+			t_keyForSmartCard.assign((const char*)encryptedKey, length_of_encrypted_key);
+			#endif
 			if (updateOptions()) {				
 				return true;
 			}
 		}
 		else
 		{
-			
+			int length_of_decrypted_key = 0;
+			byte* decryptedKey = SmartCard::SmartCard::decryptKey((byte*)t_pin.c_str(), 
+																  (int)(t_pin.size()), 
+																 (byte*)((options->keyForSmartCard).c_str()), 
+																 (int)(strlen((options->keyForSmartCard).c_str())),
+																 &length_of_decrypted_key);
+			if (decryptedKey == NULL)
+			{
+				return false;
+			}
+
+			#ifdef UNICODE
+						unicode::utf8_to_wchar((const char*)decryptedKey, crypt::Constants::keyForSmartCard_size, t_password);
+			#else
+						t_password.assign((const char*)key, crypt::Constants::keyForSmartCard_size);
+			#endif
+
+			if (updateOptions()) {
+				return true;
+			}
 		}
 	}
 

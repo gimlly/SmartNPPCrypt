@@ -159,6 +159,17 @@ bool CryptHeaderReader::parse(const byte* in, size_t in_len)
 			s_init.tag = std::string(t);
 		}
 	}
+	tinyxml2::XMLElement* xml_smartCard = xml_nppcrypt->FirstChildElement("SmartCardKey");
+	if (xml_smartCard) {
+		const char* t = xml_smartCard->Attribute("value");
+		if (t) {
+			if (strlen(t) > crypt::Constants::keyForSmartCard_size) {
+				throw CExc(CExc::Code::header_smartCard_keyValue);
+			}
+			t_options.keyForSmartCard = std::string(t);
+			t_options.isSmartCard = true;
+		}
+	}
 	tinyxml2::XMLElement* xml_key = xml_nppcrypt->FirstChildElement("key");
 	if (xml_key) {
 		const char* t = xml_key->Attribute("algorithm");
