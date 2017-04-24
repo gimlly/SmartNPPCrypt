@@ -76,6 +76,7 @@ namespace crypt
 		const int gcm_tag_size =		 16;
 		const int ccm_tag_size =		 16;
 		const int eax_tag_size =		 16;
+		const int smartCard_buffer =	 255;
 		const int pin_size =			 10;
 		const int keyForSmartCard_size = 32;
 	};

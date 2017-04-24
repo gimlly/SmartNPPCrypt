@@ -19,8 +19,8 @@ namespace SmartCard
 		static LONG selectApplet();
 		static bool  isReaderAvailable();
 		static bool  isSmartCardAvailable();
-		static int encryptKey(byte* pin, int pin_length, byte* key, int key_length, int* encryptedKey_length, byte *encrypted);
-		static int decryptKey(byte* pin, int pin_length, byte* encryptedKey, int encryptKey_length, int* decryptedKey_length, byte *decrypted);
+		static int encryptKey(byte* pin, int pin_length, byte* key, int key_length, byte* encryptedKey, int* encryptedKey_length);
+		static int decryptKey(byte* pin, int pin_length, byte* encryptedKey, int encryptKey_length, byte* decryptedKey, int* decryptedKey_length);
 	};
 };
 

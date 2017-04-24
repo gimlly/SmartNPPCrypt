@@ -921,7 +921,13 @@ bool DlgCrypt::OnClickOKSmartCard()
 			CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
 			#endif
 			int length_of_encrypted_key = 32;
-			byte* encryptedKey = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), (int)(t_pin.size()), key, crypt::Constants::keyForSmartCard_size, &length_of_encrypted_key);
+			byte encryptedKey[crypt::Constants::smartCard_buffer];
+			int result = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), 
+																  (int)(t_pin.size()), 
+																  key, 
+																  crypt::Constants::keyForSmartCard_size, 
+																  encryptedKey,
+																  &length_of_encrypted_key);
 			if (encryptedKey == NULL)
 			{				
 				return false;
@@ -941,11 +947,13 @@ bool DlgCrypt::OnClickOKSmartCard()
 		else
 		{
 			int length_of_decrypted_key = 0;
-			byte* decryptedKey = SmartCard::SmartCard::decryptKey((byte*)t_pin.c_str(), 
-																  (int)(t_pin.size()), 
-																 (byte*)((options->keyForSmartCard).c_str()), 
-																 (int)(strlen((options->keyForSmartCard).c_str())),
-																 &length_of_decrypted_key);
+			byte decryptedKey[crypt::Constants::smartCard_buffer];
+			int result = SmartCard::SmartCard::decryptKey((byte*)t_pin.c_str(), 
+														  (int)(t_pin.size()), 
+														  (byte*)((options->keyForSmartCard).c_str()), 
+														  (int)(strlen((options->keyForSmartCard).c_str())),
+														  decryptedKey,
+														  &length_of_decrypted_key);
 			if (decryptedKey == NULL)
 			{
 				return false;
