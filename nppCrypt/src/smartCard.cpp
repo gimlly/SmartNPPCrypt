@@ -1,8 +1,8 @@
 #include "smartCard.h"
- 
+#include <winscard.h>
 
-// 0x00, 0xa4,  0x04,  0x00,  0x0b, 
-BYTE cmd1[] = {0x73,  0x69,  0x6D,  0x70,  0x6C, 0x65,  0x61,  0x70,  0x70,  0x6C,  0x65,  0x74 };
+
+
 
 LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, byte * data, size_t dataSize, byte *returnData, DWORD rDataLen, SCARDHANDLE hCard, SCARD_IO_REQUEST pioSendPci) {
 	LONG returnValue; 
@@ -34,12 +34,13 @@ LONG SmartCard::SmartCard::connectToCard( SCARDHANDLE *hCard, SCARD_IO_REQUEST *
 	SCARDCONTEXT hContext;
 	DWORD dwReaders, dwActiveProtocol, dwRecvLength;
 
-
+	
 	returnValue = SCardEstablishContext(SCARD_SCOPE_SYSTEM, NULL, NULL, &hContext);
+	
 	if (returnValue != 0) {
 		return returnValue;
 	}
-
+	
 	dwReaders = SCARD_AUTOALLOCATE;
 
 	returnValue = SCardListReaders(hContext, NULL, (LPTSTR)&mszReaders, &dwReaders);
@@ -60,6 +61,7 @@ LONG SmartCard::SmartCard::connectToCard( SCARDHANDLE *hCard, SCARD_IO_REQUEST *
 	}
 
 	return returnValue;
+
 }
 
 
@@ -94,17 +96,6 @@ bool SmartCard::SmartCard::isSmartCardAvailable()
 }
 
 int SmartCard::SmartCard::encryptKey(byte * pin, int pin_length, byte * key, int key_length, byte * encrypted, int * encryptedKey_length) {
-
-	LONG status;
-	SCARDHANDLE hCard;
-	SCARD_IO_REQUEST pioSendPci;
-
-	status = connectToCard(&hCard,&pioSendPci);
-	if (status != 0) {
-		return 1;
-	}
-
-
 
 
 	return 0;
