@@ -12,8 +12,7 @@ import javacard.framework.*;
 import javacard.security.*;
 import javacardx.crypto.*;
 
-public class NppCryptApplet extends javacard.framework.Applet
-{
+public class NppCryptApplet extends javacard.framework.Applet {
     // MAIN INSTRUCTION CLASS
     final static byte CLA_SIMPLEAPPLET              = (byte) 0xB0;
 
@@ -31,13 +30,41 @@ public class NppCryptApplet extends javacard.framework.Applet
     final static short AES_BLOCK_LENGTH             = (short) 0x10; //16 bytes
     final static short CHALLENGE_LENGTH             = (short) 0x10; //16 bytes
     final static short HASH_LENGTH                  = (short) 0x14; //20 bytes
-    final static short RANDOM_LENGTH                = (short) 0x80; //128 bytes
-    final static short DH_GENERATOR_LENGTH          = (short) 0x80; //128 bytes
-    final static short DH_MODULUS_LENGTH            = (short) 0x80; //128 bytes
+    final static short RANDOM_LENGTH                = (short) 0x20; //32 bytes
+    final static short DH_GENERATOR_LENGTH          = (short) 0x01; //1 byte
+    final static short DH_MODULUS_LENGTH            = (short) 0xC0; //192 bytes
 
-    //these are public, no need to hide them
-    final static byte DH_GENERATOR[]                = {};
-    final static byte DH_MODULUS[]                  = {};
+    //Generator and Modulus are public, no need to hide them
+    final static byte DH_GENERATOR[]                  = {(byte) 0x02};
+    
+    //source:
+    //https://tools.ietf.org/html/rfc3526#page-3
+    final static byte DH_MODULUS[]                  = {
+    (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+    (byte) 0xC9, (byte) 0x0F, (byte) 0xDA, (byte) 0xA2, (byte) 0x21, (byte) 0x68, (byte) 0xC2, (byte) 0x34,
+    (byte) 0xC4, (byte) 0xC6, (byte) 0x62, (byte) 0x8B, (byte) 0x80, (byte) 0xDC, (byte) 0x1C, (byte) 0xD1,
+    (byte) 0x29, (byte) 0x02, (byte) 0x4E, (byte) 0x08, (byte) 0x8A, (byte) 0x67, (byte) 0xCC, (byte) 0x74,
+    (byte) 0x02, (byte) 0x0B, (byte) 0xBE, (byte) 0xA6, (byte) 0x3B, (byte) 0x13, (byte) 0x9B, (byte) 0x22,
+    (byte) 0x51, (byte) 0x4A, (byte) 0x08, (byte) 0x79, (byte) 0x8E, (byte) 0x34, (byte) 0x04, (byte) 0xDD,
+    (byte) 0xEF, (byte) 0x95, (byte) 0x19, (byte) 0xB3, (byte) 0xCD, (byte) 0x3A, (byte) 0x43, (byte) 0x1B,
+    (byte) 0x30, (byte) 0x2B, (byte) 0x0A, (byte) 0x6D, (byte) 0xF2, (byte) 0x5F, (byte) 0x14, (byte) 0x37,
+    (byte) 0x4F, (byte) 0xE1, (byte) 0x35, (byte) 0x6D, (byte) 0x6D, (byte) 0x51, (byte) 0xC2, (byte) 0x45,
+    (byte) 0xE4, (byte) 0x85, (byte) 0xB5, (byte) 0x76, (byte) 0x62, (byte) 0x5E, (byte) 0x7E, (byte) 0xC6,
+    (byte) 0xF4, (byte) 0x4C, (byte) 0x42, (byte) 0xE9, (byte) 0xA6, (byte) 0x37, (byte) 0xED, (byte) 0x6B,
+    (byte) 0x0B, (byte) 0xFF, (byte) 0x5C, (byte) 0xB6, (byte) 0xF4, (byte) 0x06, (byte) 0xB7, (byte) 0xED,
+    (byte) 0xEE, (byte) 0x38, (byte) 0x6B, (byte) 0xFB, (byte) 0x5A, (byte) 0x89, (byte) 0x9F, (byte) 0xA5,
+    (byte) 0xAE, (byte) 0x9F, (byte) 0x24, (byte) 0x11, (byte) 0x7C, (byte) 0x4B, (byte) 0x1F, (byte) 0xE6,
+    (byte) 0x49, (byte) 0x28, (byte) 0x66, (byte) 0x51, (byte) 0xEC, (byte) 0xE4, (byte) 0x5B, (byte) 0x3D,
+    (byte) 0xC2, (byte) 0x00, (byte) 0x7C, (byte) 0xB8, (byte) 0xA1, (byte) 0x63, (byte) 0xBF, (byte) 0x05,
+    (byte) 0x98, (byte) 0xDA, (byte) 0x48, (byte) 0x36, (byte) 0x1C, (byte) 0x55, (byte) 0xD3, (byte) 0x9A,
+    (byte) 0x69, (byte) 0x16, (byte) 0x3F, (byte) 0xA8, (byte) 0xFD, (byte) 0x24, (byte) 0xCF, (byte) 0x5F,
+    (byte) 0x83, (byte) 0x65, (byte) 0x5D, (byte) 0x23, (byte) 0xDC, (byte) 0xA3, (byte) 0xAD, (byte) 0x96,
+    (byte) 0x1C, (byte) 0x62, (byte) 0xF3, (byte) 0x56, (byte) 0x20, (byte) 0x85, (byte) 0x52, (byte) 0xBB,
+    (byte) 0x9E, (byte) 0xD5, (byte) 0x29, (byte) 0x07, (byte) 0x70, (byte) 0x96, (byte) 0x96, (byte) 0x6D,
+    (byte) 0x67, (byte) 0x0C, (byte) 0x35, (byte) 0x4E, (byte) 0x4A, (byte) 0xBC, (byte) 0x98, (byte) 0x04,
+    (byte) 0xF1, (byte) 0x74, (byte) 0x6C, (byte) 0x08, (byte) 0xCA, (byte) 0x23, (byte) 0x73, (byte) 0x27,
+    (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF
+    };
 
     final static short SZERO                        = (short) 0x0;
     final static byte  BZERO                        = (byte)  0x0;
@@ -65,6 +92,7 @@ public class NppCryptApplet extends javacard.framework.Applet
     private   Cipher         m_decryptCipher = null;//this stores AES decrypt cipher
     private   AESKey         m_sessionKey = null;   //this stores secure channel session key
     private   OwnerPIN       m_pin = null;          //this stores pin
+    private   MessageDigest  m_hash = null;         //hash of primary session key
 
 /////////////////////////////////////////////////////////////////////
 
@@ -131,7 +159,7 @@ public class NppCryptApplet extends javacard.framework.Applet
             // INITIALIZE RNG, RSA, KEY
             m_secureRandom = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
             m_DHCipher = Cipher.getInstance(Cipher.ALG_RSA_NOPAD, false);
-            m_DHKey = (RSAPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PRIVATE, KeyBuilder.LENGTH_RSA_1024, false);
+            m_DHKey = (RSAPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PRIVATE, KeyBuilder.LENGTH_RSA_1536, false);
                     
             // CREATE HASHKEY OBJECT, DEFINE AND INIT ENCRYPTION ALGORITHM
             m_HashKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
@@ -150,7 +178,7 @@ public class NppCryptApplet extends javacard.framework.Applet
             /*set value here*/
             
             //store initial PIN, with tryLimit and maxPINsize
-            m_pin = new OwnerPIN((byte) 5, (byte) 8);
+            m_pin = new OwnerPIN((byte) 5, (byte) 16);
             m_pin.update(m_dataArray, (byte) 0, (byte) 4);
             
             // TEMPORARY BUFFER USED FOR FAST OPERATION WITH MEMORY LOCATED IN RAM
@@ -219,6 +247,7 @@ public class NppCryptApplet extends javacard.framework.Applet
                 case INS_SETPIN: SetPIN(apdu); break;
                 case INS_ENCRYPT_FILEKEY: EncryptFileKey(apdu); break;
                 case INS_DECRYPT_FILEKEY: DecryptFileKey(apdu); break;
+                case INS_DUMP_EEPROM: DumpEEPROM(apdu); break;
                 default :
                     // The INS code is not supported by the dispatcher
                     ISOException.throwIt( ISO7816.SW_INS_NOT_SUPPORTED ) ;
@@ -237,26 +266,37 @@ public class NppCryptApplet extends javacard.framework.Applet
         byte[]    apdubuf = apdu.getBuffer();
         short     dataLen = apdu.setIncomingAndReceive();
 
-        //Generate exponent (not sure about the length, but 0x80 = 128 bytes = 1024 bits
+        //Generate exponent (not sure about the length, but 0x20 = 32 bytes = 256 bits
         m_secureRandom.generateData(m_ramArray1, SZERO, RANDOM_LENGTH);
       
         //Compute A (Fill RSAKey with exponent, modulus, init cipher, encrypt)
         m_DHKey.setExponent(m_ramArray1, SZERO, RANDOM_LENGTH);
         m_DHKey.setModulus(DH_MODULUS, SZERO, DH_MODULUS_LENGTH);
         m_DHCipher.init(m_DHKey, Cipher.MODE_ENCRYPT);
-        m_DHCipher.doFinal(DH_GENERATOR, SZERO, RANDOM_LENGTH, m_ramArray1, SZERO);
+        m_DHCipher.doFinal(DH_GENERATOR, SZERO, DH_GENERATOR_LENGTH, m_ramArray1, SZERO);
+        //DYNAMIC LENGTH OF OUTPUT BUFFER
+        //PKCS7 padding - hodnota paddingu urcuje pocet padovanych bytov
 
         //Encrypt A with preshared secret, store it in secondary ram array
-        m_encryptCipher.doFinal(m_ramArray1, SZERO, RANDOM_LENGTH, m_ramArray2, SZERO);
+        //CHANGE TO DYNAMIC LENGTH
+        m_encryptCipher.doFinal(m_ramArray1, SZERO, XDH_MODULUS_LENGTH, m_ramArray2, SZERO);
 
         //Decrypt & copy B to RAM (from plugin to card)
-        m_decryptCipher.doFinal(apdubuf, ISO7816.OFFSET_CDATA, RANDOM_LENGTH, m_ramArray1, SZERO);
+        m_decryptCipher.doFinal(apdubuf, ISO7816.OFFSET_CDATA, XRANDOM_LENGTH, m_ramArray1, SZERO);
         //Copy encrypted A to APDU (from card to plugin)
         Util.arrayCopyNonAtomic(m_ramArray2, SZERO, apdubuf, ISO7816.OFFSET_CDATA, RANDOM_LENGTH);
 
+        //TODO remove padding from decrypted B
+        
         //compute Session Key
-        m_DHCipher.doFinal(m_ramArray1, SZERO, RANDOM_LENGTH, m_ramArray2, SZERO);
+        m_DHCipher.doFinal(m_ramArray1, SZERO, XRANDOM_LENGTH, m_ramArray2, SZERO);
         //Init cipher with session Key
+        
+        //HASH session key into m_ramArray1
+        
+        //XOR it into m_ramArray2
+        
+        //insert key into KeyObject - sessionKey
         
         //send APDU with encrypted A (dataLen should be equal to RANDOM_LENGTH, but still)
         apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, RANDOM_LENGTH);
@@ -308,5 +348,17 @@ public class NppCryptApplet extends javacard.framework.Applet
         } else {
             ISOException.throwIt(SW_NEED_PIN);
         }
+    }
+    
+    //Test function to dump PIN and Key from eeprom via apdu
+    void DumpEEPROM(APDU apdu) {
+        byte[]  apdubuf = apdu.getBuffer();
+        short   dataLen = apdu.setIncomingAndReceive();
+        
+        // copy data from EEPROM to apdu
+        Util.arrayCopyNonAtomic(m_dataArray, (short) 0, apdubuf, ISO7816.OFFSET_CDATA, HASH_LENGTH);
+        
+        // reeturn the value
+        apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, HASH_LENGTH);
     }
 }
