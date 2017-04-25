@@ -3,13 +3,13 @@
 
 #include <string>
 #include <vector>
+#include <winscard.h>
 #include "exception.h"
 
 namespace SmartCard
 {
-	namespace Constants
-	{
-
+	namespace Constants {
+		BYTE AppletID[] = { 0x73,  0x69,  0x6D,  0x70,  0x6C, 0x65,  0x61,  0x70,  0x70,  0x6C,  0x65,  0x74 };
 	};
 
 	class SmartCard
@@ -17,7 +17,7 @@ namespace SmartCard
 	private: 
 		//Why does everything have to be so static? .. 
 
-		static LONG sendADPDU(byte command, byte * data, size_t dataSize, byte *returnData, DWORD rDataLen, SCARDHANDLE hCard, SCARD_IO_REQUEST pioSendPci);
+		static LONG sendADPDU(byte cla, byte command, byte p1, byte p2, byte * data, size_t dataSize, byte *returnData, DWORD rDataLen, SCARDHANDLE hCard, SCARD_IO_REQUEST pioSendPci);
 		static LONG connectToCard(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci);
 
 	public:
