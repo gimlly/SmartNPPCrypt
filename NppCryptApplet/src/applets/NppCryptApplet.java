@@ -28,8 +28,8 @@ public class NppCryptApplet extends javacard.framework.Applet {
     // CONSTANTS
     final static short ARRAY_LENGTH                 = (short) 0xff; //255 bytes
     final static short AES_BLOCK_LENGTH             = (short) 0x10; //16 bytes
-    final static short CHALLENGE_LENGTH             = (short) 0x10; //16 bytes
-    final static short HASH_LENGTH                  = (short) 0x14; //20 bytes
+//    final static short CHALLENGE_LENGTH             = (short) 0x10; //16 bytes
+    final static short HASH_LENGTH                  = (short) 0x20; //32 bytes
     final static short RANDOM_LENGTH                = (short) 0x20; //32 bytes
     final static short DH_GENERATOR_LENGTH          = (short) 0x01; //1 byte
     final static short DH_MODULUS_LENGTH            = (short) 0xC0; //192 bytes
@@ -160,6 +160,9 @@ public class NppCryptApplet extends javacard.framework.Applet {
             m_secureRandom = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
             m_DHCipher = Cipher.getInstance(Cipher.ALG_RSA_NOPAD, false);
             m_DHKey = (RSAPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PRIVATE, KeyBuilder.LENGTH_RSA_1536, false);
+            
+            // INIT HASH ENGINE
+            m_hash = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
                     
             // CREATE HASHKEY OBJECT, DEFINE AND INIT ENCRYPTION ALGORITHM
             m_HashKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
@@ -207,7 +210,7 @@ public class NppCryptApplet extends javacard.framework.Applet {
     public static void install(byte[] bArray, short bOffset, byte bLength) throws ISOException
     {
         // applet  instance creation 
-        new NppCryptApplet (bArray, bOffset, bLength);
+        new NppCryptApplet(bArray, bOffset, bLength);
     }
 
     public boolean select()
@@ -263,9 +266,11 @@ public class NppCryptApplet extends javacard.framework.Applet {
      * @param apdu encrypted by preshared secret: receive B, send A
      */
     void BuildChannel(APDU apdu) {
-        byte[]    apdubuf = apdu.getBuffer();
-        short     dataLen = apdu.setIncomingAndReceive();
-
+        byte[]      apdubuf = apdu.getBuffer();
+        short       dataLen = apdu.setIncomingAndReceive();
+        short       len;
+        byte        pad;
+        
         //Generate exponent (not sure about the length, but 0x20 = 32 bytes = 256 bits
         m_secureRandom.generateData(m_ramArray1, SZERO, RANDOM_LENGTH);
       
@@ -273,38 +278,49 @@ public class NppCryptApplet extends javacard.framework.Applet {
         m_DHKey.setExponent(m_ramArray1, SZERO, RANDOM_LENGTH);
         m_DHKey.setModulus(DH_MODULUS, SZERO, DH_MODULUS_LENGTH);
         m_DHCipher.init(m_DHKey, Cipher.MODE_ENCRYPT);
-        m_DHCipher.doFinal(DH_GENERATOR, SZERO, DH_GENERATOR_LENGTH, m_ramArray1, SZERO);
-        //DYNAMIC LENGTH OF OUTPUT BUFFER
-        //PKCS7 padding - hodnota paddingu urcuje pocet padovanych bytov
+        len = m_DHCipher.doFinal(DH_GENERATOR, SZERO, DH_GENERATOR_LENGTH, m_ramArray1, SZERO);
+        
+        //PKCS7 padding
+        //calculate pad length and value
+        pad = (byte) (16 - (len % 16));
+        //if it's aligned already, we add whle 16 block
+        if (pad == BZERO) {
+            pad = (byte) 16;
+        }
+        //add that many padding bytes
+        for (short i = 0; i < pad; i++) {
+            m_ramArray1[(short) (len + i)] = pad;
+        }
 
-        //Encrypt A with preshared secret, store it in secondary ram array
-        //CHANGE TO DYNAMIC LENGTH
-        m_encryptCipher.doFinal(m_ramArray1, SZERO, XDH_MODULUS_LENGTH, m_ramArray2, SZERO);
+        //(AES) Encrypt A with preshared secret, store it in secondary ram array
+        m_encryptCipher.doFinal(m_ramArray1, SZERO, (short) (len + pad), m_ramArray2, SZERO);
 
-        //Decrypt & copy B to RAM (from plugin to card)
-        m_decryptCipher.doFinal(apdubuf, ISO7816.OFFSET_CDATA, XRANDOM_LENGTH, m_ramArray1, SZERO);
-        //Copy encrypted A to APDU (from card to plugin)
+        //(AES) Decrypt & copy B to RAM (from plugin to card)
+        m_decryptCipher.doFinal(apdubuf, ISO7816.OFFSET_CDATA, dataLen, m_ramArray1, SZERO);
+        pad = apdubuf[ISO7816.OFFSET_P1]; //P1 contains unpadded length. I used pad variable, to save space...
+        
+        //Copy encrypted A to APDU (from card to plugin), set padless data length
         Util.arrayCopyNonAtomic(m_ramArray2, SZERO, apdubuf, ISO7816.OFFSET_CDATA, RANDOM_LENGTH);
-
-        //TODO remove padding from decrypted B
+        apdubuf[ISO7816.OFFSET_P1] = (byte) len;
         
-        //compute Session Key
-        m_DHCipher.doFinal(m_ramArray1, SZERO, XRANDOM_LENGTH, m_ramArray2, SZERO);
-        //Init cipher with session Key
+        //(RSA) compute Primary Session Key
+        len = m_DHCipher.doFinal(m_ramArray1, SZERO, (short) pad, m_ramArray2, SZERO);
         
-        //HASH session key into m_ramArray1
+        //(SHA) hash primary session key into m_ramArray1
+        m_hash.doFinal(m_ramArray2, SZERO, len, m_ramArray1, SZERO);
         
-        //XOR it into m_ramArray2
+        //XOR it inside m_ramArray1
+        for (short i = 0; i < 16; i++) {
+            m_ramArray1[i] ^= (byte) m_ramArray1[(short) i + AES_BLOCK_LENGTH];
+        }
         
-        //insert key into KeyObject - sessionKey
+        //insert key into KeyObject - sessionKey, init cipher
+        m_sessionKey.setKey(m_ramArray1, SZERO);
+        m_encryptCipher.init(m_sessionKey, Cipher.MODE_ENCRYPT);
+        m_decryptCipher.init(m_sessionKey, Cipher.MODE_DECRYPT);
         
         //send APDU with encrypted A (dataLen should be equal to RANDOM_LENGTH, but still)
         apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, RANDOM_LENGTH);
-        
-        //apdubufSend = encrypted A
-        //m_ramArray1 = plain B
-        //m_ramArray2 = Session Key
-        
     }
     
     /**
