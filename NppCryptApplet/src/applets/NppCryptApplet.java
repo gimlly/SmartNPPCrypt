@@ -32,7 +32,7 @@ public class NppCryptApplet extends javacard.framework.Applet {
     final static short SW_CHALLENGE_LENGTH_BAD      = (short) 0x6969;
 
     // CONSTANTS
-    final static short ARRAY_LENGTH                 = (short) 0xff; //255 bytes
+    final static short ARRAY_LENGTH                 = (short) 0x100; //256 bytes
     final static short AES_BLOCK_LENGTH             = (short) 0x10; //16 bytes
     final static short HASH_LENGTH                  = (short) 0x20; //32 bytes
     final static short RANDOM_LENGTH                = (short) 0x20; //32 bytes
@@ -138,19 +138,13 @@ public class NppCryptApplet extends javacard.framework.Applet {
 
             //Copy proprietary data to eeprom. 4 bytes of PIN, 16 bytes of Key
             m_dataArray = new byte[ARRAY_LENGTH];
+
+            // install params are:
+            // 4B PIN
+            // yB hash
+            Util.arrayCopyNonAtomic(buffer, dataOffset, m_dataArray, (short) 0, buffer[(byte)(dataOffset - 1)]);
             
-            //Pin = 4 to 8 bytes
-            byte[] arrayPin = {(byte)0x03, (byte)0x01, (byte)0x07, (byte)0x04};
-            //pbkdf = 20 (truncated to 16 bytes)
-            byte[] arrayKey = {(byte)0xfe, (byte)0xff, (byte)0xff, (byte)0xff, 
-                               (byte)0xfe, (byte)0xff, (byte)0xff, (byte)0xff, 
-                               (byte)0xfe, (byte)0xff, (byte)0xff, (byte)0xff, 
-                               (byte)0xfe, (byte)0xff, (byte)0xff, (byte)0xff,
-                               (byte)0xfe, (byte)0xff, (byte)0xff, (byte)0xff}; //last 4 bytes are cut off
-            Util.arrayCopyNonAtomic(arrayPin, (short) 0, m_dataArray, (short) 0, (short) 0x04);
-            Util.arrayCopyNonAtomic(arrayKey, (short) 0, m_dataArray, (short) 4, (short) 0x10);
-//            Util.arrayCopyNonAtomic(buffer, dataOffset, m_dataArray, (short) 0, buffer[(byte)(dataOffset - 1)]);
-            
+            //Set generator value
             DH_GENERATOR[(short) (DH_GENERATOR_LENGTH - 1)] = (byte) 0x02;
 
             // INITIALIZE RNG, RSA, KEY
@@ -163,7 +157,7 @@ public class NppCryptApplet extends javacard.framework.Applet {
                     
             // CREATE HASHKEY OBJECT, DEFINE AND INIT ENCRYPTION ALGORITHM
             m_HashKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
-            m_HashKey.setKey(arrayKey, (short) 4);
+            m_HashKey.setKey(m_dataArray, (short) 4);
             m_encryptCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
             m_decryptCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
             m_encryptCipher.init(m_HashKey, Cipher.MODE_ENCRYPT);
@@ -178,15 +172,15 @@ public class NppCryptApplet extends javacard.framework.Applet {
             /*set value here*/
             
             //store initial PIN, with tryLimit and maxPINsize
-            m_pin = new OwnerPIN((byte) 5, (byte) 16);
-            m_pin.update(m_dataArray, (byte) 0, (byte) 4);
+            m_pin = new OwnerPIN((byte) 3, (byte) 16);
+            m_pin.update(m_dataArray, BZERO, (byte) 4);
             
             // TEMPORARY BUFFER USED FOR FAST OPERATION WITH MEMORY LOCATED IN RAM
-            m_ramArray1 = JCSystem.makeTransientByteArray((short) 260, JCSystem.CLEAR_ON_DESELECT);
-            m_ramArray2 = JCSystem.makeTransientByteArray((short) 260, JCSystem.CLEAR_ON_DESELECT);
+            m_ramArray1 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            m_ramArray2 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
             
             // Set EEPROM to 0s. No data needs to be stored in EEPROM.
-            Util.arrayFillNonAtomic(m_dataArray, (short) 0, length, (byte) 0);
+            Util.arrayFillNonAtomic(m_dataArray, SZERO, ARRAY_LENGTH, BZERO);
 
             // update flag
             isOP2 = true;
@@ -304,15 +298,10 @@ public class NppCryptApplet extends javacard.framework.Applet {
         //need to pad ramArray1 from the left with 0s.
         Util.arrayCopyNonAtomic(m_ramArray1, SZERO, m_ramArray1, (short) (DH_GENERATOR_LENGTH - lenB), lenB);
         Util.arrayFillNonAtomic(m_ramArray1, SZERO, (short) (DH_GENERATOR_LENGTH - lenB - 1), BZERO);
-        
+        Util.arrayFillNonAtomic(m_ramArray2, SZERO, ARRAY_LENGTH, BZERO);
         //(RSA) compute Primary Session Key
-        //TUTO TO PADA
-        try {
-            lenA = m_DHCipher.doFinal(m_ramArray1, SZERO, DH_GENERATOR_LENGTH, m_ramArray2, SZERO);
-        } catch (CryptoException e) {
-            short reason = e.getReason();
-            reason = e.getReason();
-        }
+        m_DHCipher.init(m_DHKey, Cipher.MODE_DECRYPT); //init engine again
+        lenA = m_DHCipher.doFinal(m_ramArray1, SZERO, DH_GENERATOR_LENGTH, m_ramArray2, SZERO);
         
         //(SHA) hash primary session key into m_ramArray1
         m_hash.doFinal(m_ramArray2, SZERO, lenA, m_ramArray1, SZERO);
