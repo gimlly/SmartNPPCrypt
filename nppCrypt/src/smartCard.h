@@ -11,6 +11,9 @@ namespace SmartCard
 		static BYTE AppletID[] = { 0x73,  0x69,  0x6D,  0x70,  0x6C, 0x65,  0x61,  0x70,  0x70,  0x6C,  0x65,  0x74 };
 		static byte appletCLA = 0xb0;
 		static byte INS_BuildChannel = 0x71;
+		static byte INS_ENCRYPT_FILEKEY = 0x85;
+		static byte INS_DECRYPT_FILEKEY = 0x87;
+		static byte INS_CHECKCHANNEL = 0x73;
 		static size_t DH_MODULO_SIZE = 192;
 		static BYTE DH_MODULO[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC9, 0x0F, 0xDA, 0xA2, 0x21, 0x68, 0xC2, 0x34, 0xC4, 0xC6, 0x62, 0x8B, 0x80, 0xDC, 0x1C, 0xD1,
 			0x29, 0x02, 0x4E, 0x08, 0x8A, 0x67, 0xCC, 0x74, 0x02, 0x0B, 0xBE, 0xA6, 0x3B, 0x13, 0x9B, 0x22, 0x51, 0x4A, 0x08, 0x79, 0x8E, 0x34, 04, 0xDD,
@@ -24,6 +27,7 @@ namespace SmartCard
 		static const size_t DerivedKeyLength = 16;
 		static BYTE salt[] = { 0x12, 0x34, 0x56 };
 		static size_t saltLength = 3;
+		static BYTE successADPU[] = { 0x90, 0x00 };
 	};
 
 	class SmartCard
@@ -34,13 +38,13 @@ namespace SmartCard
 		static LONG sendADPDU(byte cla, byte command, byte p1, byte p2, byte * data, size_t dataSize, LPBYTE returnData, DWORD *rDataLen, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci);
 		static LONG connectToCard(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci);
 		static LONG selectApplet(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci);
-		static unsigned int derivateKey(BYTE *output, BYTE *pin);
-
+		static unsigned int deriveKey(BYTE *output, BYTE *pin);
+		LONG buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey);
 	public:
 		
 		static bool  isReaderAvailable();
 		static bool  isSmartCardAvailable();
-		static int encryptKey(byte* pin, int pin_length, byte* key, int key_length, byte* encryptedKey, int* encryptedKey_length);
+		LONG encryptKey(byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encrypted, DWORD * encryptedKey_length);
 		static int decryptKey(byte* pin, int pin_length, byte* encryptedKey, int encryptKey_length, byte* decryptedKey, int* decryptedKey_length);
 	};
 };
