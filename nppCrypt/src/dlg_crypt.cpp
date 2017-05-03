@@ -82,6 +82,9 @@ INT_PTR CALLBACK DlgCrypt::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPara
 					{
 						case IDC_REFRESH:
 						{
+
+							SmartCard::SmartCard::testBuildChannel();
+							/*
 							if (SmartCard::SmartCard::isReaderAvailable())
 							{								
 								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_READER_STATE, TEXT("YES"));
@@ -98,7 +101,7 @@ INT_PTR CALLBACK DlgCrypt::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPara
 							else
 							{
 								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CARD_STATE, TEXT("NO"));
-							}
+							}*/
 							break;
 						}
 						case IDC_OK:
@@ -922,12 +925,12 @@ bool DlgCrypt::OnClickOKSmartCard()
 			#endif
 			int length_of_encrypted_key = 32;
 			byte encryptedKey[crypt::Constants::smartCard_buffer];
-			int result = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), 
+			/*int result = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), 
 																  (int)(t_pin.size()), 
 																  key, 
 																  crypt::Constants::keyForSmartCard_size, 
 																  encryptedKey,
-																  &length_of_encrypted_key);
+																  &length_of_encrypted_key);*/
 			if (encryptedKey == NULL)
 			{				
 				return false;

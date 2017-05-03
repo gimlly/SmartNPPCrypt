@@ -29,7 +29,7 @@ LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, b
 
 
 	if (dataSize > 0) {
-		apdu[4] = (byte)dataSize - 1;
+		apdu[4] = (byte)dataSize ;
 
 		for (size_t count = 0; count < dataSize; count++) {
 			apdu[count + 5] = data[count];
@@ -37,19 +37,22 @@ LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, b
 	}
 
 
-	DWORD retSize = 0;
-	byte retAPDU[300];
-
+	DWORD retSize = 300;
+	BYTE retAPDU[300];
 
 	for (int i = 0; i < dataSize + 5; i++) {
 		fprintf(f, "%02X ", apdu[i]);
 	}
+
+	fprintf(f, "\n");
+
+
 	returnValue = SCardTransmit(*hCard, pioSendPci, apdu, dataSize + 5, NULL, retAPDU, &retSize);
 
-	//if (memcmp(retAPDU + (retSize - 2), Constants::successADPU, 2) == 0) {
-		//memcpy(returnData, retAPDU, retSize - 2);
-		//return 0;
-	//};
+	if (memcmp(retAPDU + (retSize - 2), Constants::successADPU, 2) == 0) {
+		memcpy(returnData, retAPDU, retSize - 2);
+	//	return 0;
+	};
 
 
 	//For DEBUG only!
@@ -114,7 +117,7 @@ LONG SmartCard::SmartCard::selectApplet(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pi
 	}
 
 	BYTE ret[300];
-	DWORD rSize = 0;
+	DWORD rSize = 300;
 
 	returnValue = sendADPDU(0x00, 0xa4, 0x04, 0x00,Constants::AppletID, sizeof(Constants::AppletID), ret, &rSize, hCard, pioSendPci);
 
@@ -122,13 +125,11 @@ LONG SmartCard::SmartCard::selectApplet(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pi
 	return returnValue;
 }
 
-LONG enryptcbcAES(BYTE *plain, size_t length, BYTE *key, BYTE *iv, BYTE *cryptoText) {
-	
+LONG enryptcbcAES(BYTE *plain, size_t length, BYTE *key, size_t keyLen, BYTE *iv, BYTE *cryptoText) {
 	
 	std::string cipherText;
 	
-
-	AES::Encryption aesEncryption(plain, length);
+	AES::Encryption aesEncryption(key, keyLen);
 	CBC_Mode_ExternalCipher::Encryption cbcEncryption(aesEncryption, iv);
 
 	CryptoPP::StreamTransformationFilter stfEncryptor(cbcEncryption, new CryptoPP::StringSink(cipherText));
@@ -142,22 +143,20 @@ LONG enryptcbcAES(BYTE *plain, size_t length, BYTE *key, BYTE *iv, BYTE *cryptoT
 }
 
 
-LONG decryptcbcAES(BYTE *cryptoText, size_t length, BYTE *key, BYTE *iv, BYTE *plain) {
-
+LONG decryptcbcAES(BYTE *cryptoText, size_t length, BYTE *key, size_t keyLen, BYTE *iv, BYTE *plain) {
 
 	std::string plainText;
 
-
-	AES::Decryption aesDecryption(cryptoText, length);
+	AES::Decryption aesDecryption(key, keyLen);
 	CBC_Mode_ExternalCipher::Decryption cbcDecryption(aesDecryption, iv);
 
 	CryptoPP::StreamTransformationFilter stfEncryptor(cbcDecryption, new CryptoPP::StringSink(plainText));
 	stfEncryptor.Put(cryptoText, length);
-	stfEncryptor.MessageEnd();
+//	stfEncryptor.MessageEnd();
 
 
 
-	memcpy(cryptoText, plainText.c_str(), length);
+	//memcpy(plain, plainText.c_str(), length);
 
 
 
@@ -170,6 +169,7 @@ LONG computeDHexponentation(BYTE *input, int length, BYTE *output,size_t outLeng
 	mpi randA;
 	mpi_init(&randA);
 	mpi_read_binary(&randA, input, length);
+
 
 	mpi modulo;
 	mpi_init(&modulo);
@@ -223,20 +223,24 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	
 	//generate b and compute value B 
 	BYTE randomBuff[crypt::Constants::keyForSmartCard_size];
-	BYTE ValueB[crypt::Constants::keyForSmartCard_size];
+	BYTE ValueB[Constants::DH_MODULO_SIZE];
+
 	OS_GenerateRandomBlock(true, randomBuff, crypt::Constants::keyForSmartCard_size);
-	computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, ValueB, crypt::Constants::keyForSmartCard_size);
+	computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, ValueB, Constants::DH_MODULO_SIZE);
+
+
 
 	//derive key (add pin)
 	BYTE derivedKEY[Constants::DerivedKeyLength];
 	deriveKey(derivedKEY, NULL);
-
+	
 	//enrypt value B with derived key and send it to card
-	BYTE encryptedValueB[Constants::DerivedKeyLength];
-	enryptcbcAES(ValueB, crypt::Constants::keyForSmartCard_size, derivedKEY, iv, encryptedValueB);
+	BYTE encryptedValueB[Constants::DH_MODULO_SIZE];
+	enryptcbcAES(ValueB, Constants::DH_MODULO_SIZE, derivedKEY, Constants::DerivedKeyLength, iv, encryptedValueB);
 
-	DWORD lengthOfEncryptedA = 0;
-	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_BuildChannel, crypt::Constants::keyForSmartCard_size, 0x00, encryptedValueB, crypt::Constants::keyForSmartCard_size, encryptedValueB, &lengthOfEncryptedA, hCard, pioSendPci);
+
+	//DWORD lengthOfEncryptedA = 0;
+	//SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_BuildChannel, 0x00, 0x00, encryptedValueB, crypt::Constants::keyForSmartCard_size, encryptedValueB, &lengthOfEncryptedA, hCard, pioSendPci);
 	
 	/*
 	//Decrypt value A from card
@@ -250,10 +254,10 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	size_t verLength = Constants::DerivedKeyLength + pin_length;
 	BYTE *verificationStr = new BYTE[verLength];
 
-
+	
 	memcpy(verificationStr, ValueA, Constants::DerivedKeyLength);
 	memcpy(verificationStr + Constants::DerivedKeyLength, pin, pin_length);
-
+	
 	BYTE *encryptedVerificationStr = new BYTE[verLength];
 	enryptcbcAES(verificationStr, verLength, sharedKey, iv, encryptedVerificationStr);
 
