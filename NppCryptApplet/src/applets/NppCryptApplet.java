@@ -30,6 +30,10 @@ public class NppCryptApplet extends javacard.framework.Applet {
     final static short  AES_BLOCK_LENGTH        = (short) 0x10;     // 16 bytes
     final static short  RANDOM_LENGTH           = (short) 0x20;     // 32 bytes
     final static short  DH_LENGTH               = (short) 0xC0;     // 192 bytes
+    
+    // INSTALLATION OFFSETS
+    final static short  INST_OFFSET_HASH        = (short) 0x04;     // 4 bytes
+    final static short  INST_OFFSET_KEK         = (short) 0x14;     // 20 bytes
 
     // ZERO MACROS
     final static short  SZERO                   = (short) 0x0;
@@ -132,7 +136,7 @@ public class NppCryptApplet extends javacard.framework.Applet {
                     
             // CREATE HASHKEY OBJECT, DEFINE AND INIT ENCRYPTION ALGORITHM
             m_HashKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
-            m_HashKey.setKey(m_dataArray1, (short) 4);
+            m_HashKey.setKey(m_dataArray1, INST_OFFSET_HASH);
             m_encryptCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
             m_decryptCipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
             m_encryptCipher.init(m_HashKey, Cipher.MODE_ENCRYPT);
@@ -143,9 +147,10 @@ public class NppCryptApplet extends javacard.framework.Applet {
             
             // CREATE KEK OBJECT, KEK CIPHER ENGINE
             m_KEK = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
+            m_KEK.setKey(m_dataArray1, INST_OFFSET_KEK);
             m_KEK_Cipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
             
-            //store initial PIN, with tryLimit and maxPINsize
+            //STORE INITIAL PIN, with tryLimit 3 and maxPINsize 16, current size 4
             m_pin = new OwnerPIN((byte) 3, (byte) 16);
             m_pin.update(m_dataArray1, BZERO, (byte) 4);
             
@@ -153,10 +158,10 @@ public class NppCryptApplet extends javacard.framework.Applet {
             m_ramArray1 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
             m_ramArray2 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
             
-            // Set EEPROM to zeros. Other data will be stored in EEPROM
+            // SET EEPROM TO ZEROS. Other data will be stored in EEPROM
             Util.arrayFillNonAtomic(m_dataArray1, SZERO, ARRAY_LENGTH, BZERO);
 
-            // update flag
+            // UPDATE FLAG
             isOP2 = true;
 
         } else {}
