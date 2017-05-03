@@ -28,6 +28,8 @@ namespace SmartCard
 		static BYTE salt[] = { 0x12, 0x34, 0x56 };
 		static size_t saltLength = 3;
 		static BYTE successADPU[] = { 0x90, 0x00 };
+
+		static BYTE testPin[] = { 0x01, 0x02, 0x03, 0x04 };
 	};
 
 	class SmartCard
@@ -39,9 +41,12 @@ namespace SmartCard
 		static LONG connectToCard(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci);
 		static LONG selectApplet(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci);
 		static unsigned int deriveKey(BYTE *output, BYTE *pin);
-		LONG buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey);
+		static LONG buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey);
 	public:
 		
+
+		static LONG testBuildChannel();
+
 		static bool  isReaderAvailable();
 		static bool  isSmartCardAvailable();
 		LONG encryptKey(byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encrypted, DWORD * encryptedKey_length);

@@ -6,13 +6,16 @@
 #include <cryptopp\pwdbased.h>
 #include "cryptopp\modes.h"
 #include "cryptopp\rijndael.h"
-
+#include <string.h>
 
 #include <iostream>
 #include <fstream>
-using namespace std;
+
+
 using namespace CryptoPP;
 
+
+FILE *f;
 
 LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, byte * data, size_t dataSize, LPBYTE returnData, LPDWORD rDataLen, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci) {
 	LONG returnValue; 
@@ -34,29 +37,31 @@ LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, b
 	}
 
 
-	BYTE retAPDU[300];
+	DWORD retSize = 0;
+	byte retAPDU[300];
 
-	FILE *f = fopen("C:\\Users\\Public\\Documents\\output.txt", "w");
 
 	for (int i = 0; i < dataSize + 5; i++) {
 		fprintf(f, "%02X ", apdu[i]);
 	}
+	returnValue = SCardTransmit(*hCard, pioSendPci, apdu, dataSize + 5, NULL, retAPDU, &retSize);
 
-	returnValue = SCardTransmit(*hCard, pioSendPci, apdu, dataSize + 5, NULL, returnData, rDataLen);
+	//if (memcmp(retAPDU + (retSize - 2), Constants::successADPU, 2) == 0) {
+		//memcpy(returnData, retAPDU, retSize - 2);
+		//return 0;
+	//};
 
-	
 
 	//For DEBUG only!
 
 	fprintf(f, "\n" );
-	fprintf(f, "size of return data is: %lu\n", *rDataLen);
+	fprintf(f, "size of return data is: %lu\n", retSize);
 
-	for (int i = 0; i < *rDataLen; i++) {
-		fprintf(f,"%02X ", returnData[i]);
+	for (int i = 0; i < retSize; i++) {
+		fprintf(f,"%02X ", retAPDU[i]);
 	}
 
-	fclose(f);
-
+	fprintf(f, "\n");
 	return returnValue;
 }
 
@@ -109,7 +114,7 @@ LONG SmartCard::SmartCard::selectApplet(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pi
 	}
 
 	BYTE ret[300];
-	DWORD rSize = 8;
+	DWORD rSize = 0;
 
 	returnValue = sendADPDU(0x00, 0xa4, 0x04, 0x00,Constants::AppletID, sizeof(Constants::AppletID), ret, &rSize, hCard, pioSendPci);
 
@@ -118,66 +123,49 @@ LONG SmartCard::SmartCard::selectApplet(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pi
 }
 
 LONG enryptcbcAES(BYTE *plain, size_t length, BYTE *key, BYTE *iv, BYTE *cryptoText) {
-	LONG rv;
-	/*
-	//encrypt with AES CBC from https://www.cryptopp.com/wiki/CBC_Mode
-	AutoSeededRandomPool prng;
-
-	//SecByteBlock key(AES::DEFAULT_KEYLENGTH);
-	prng.GenerateBlock(plain, length);
+	
+	
+	std::string cipherText;
+	
 
 	AES::Encryption aesEncryption(plain, length);
 	CBC_Mode_ExternalCipher::Encryption cbcEncryption(aesEncryption, iv);
 
-	StreamTransformationFilter stfDecryptor(
-		cbcEncryption,
-		new StringSink(nil)
-	);
+	CryptoPP::StreamTransformationFilter stfEncryptor(cbcEncryption, new CryptoPP::StringSink(cipherText));
+	stfEncryptor.Put(plain, length);
+	stfEncryptor.MessageEnd();
 
+	memcpy(cryptoText, cipherText.c_str(), length);
 
-
-	
-	try {
-
-	CBC_Mode< AES >::Encryption e;
-	e.SetKeyWithIV(key, SmartCard::Constants::DerivedKeyLength, iv);
-
-	CBC_Mode_ExternalCipher::Encryption encryption(
-
-
-		// The StreamTransformationFilter adds padding
-		//  as required. ECB and CBC Mode must be padded
-		//  to the block size of the cipher.
-		StringSource s(plain, true,
-			new StreamTransformationFilter(e,
-				new StringSink(cipher)
-			) // StreamTransformationFilter      
-		); // StringSource
-	}
-	catch (const CryptoPP::Exception& e)
-	{
-		cerr << e.what() << endl;
-		exit(1);
-	}*/
-	
-
-
-	return rv; 
+	return 0; 
 
 }
 
 
 LONG decryptcbcAES(BYTE *cryptoText, size_t length, BYTE *key, BYTE *iv, BYTE *plain) {
-	LONG rv;
+
+
+	std::string plainText;
+
+
+	AES::Decryption aesDecryption(cryptoText, length);
+	CBC_Mode_ExternalCipher::Decryption cbcDecryption(aesDecryption, iv);
+
+	CryptoPP::StreamTransformationFilter stfEncryptor(cbcDecryption, new CryptoPP::StringSink(plainText));
+	stfEncryptor.Put(cryptoText, length);
+	stfEncryptor.MessageEnd();
 
 
 
-	return rv;
+	memcpy(cryptoText, plainText.c_str(), length);
+
+
+
+	return 0;
+
 }
 
 LONG computeDHexponentation(BYTE *input, int length, BYTE *output,size_t outLength) {
-	LONG rv;
-
 
 	mpi randA;
 	mpi_init(&randA);
@@ -203,7 +191,7 @@ LONG computeDHexponentation(BYTE *input, int length, BYTE *output,size_t outLeng
 	mpi_free(&generator);
 	mpi_free(&result);
 
-	return rv; 
+	return 0; 
 }
 
 unsigned int SmartCard::SmartCard::deriveKey(BYTE * output, BYTE * pin) {
@@ -228,9 +216,11 @@ bool SmartCard::SmartCard::isSmartCardAvailable() {
 
 LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey) {
 
+	f = fopen("C:\\Users\\Public\\Documents\\output.txt", "w");
+
 	//select applet on card
 	SmartCard::selectApplet(hCard, pioSendPci);
-
+	
 	//generate b and compute value B 
 	BYTE randomBuff[crypt::Constants::keyForSmartCard_size];
 	BYTE ValueB[crypt::Constants::keyForSmartCard_size];
@@ -248,7 +238,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	DWORD lengthOfEncryptedA = 0;
 	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_BuildChannel, crypt::Constants::keyForSmartCard_size, 0x00, encryptedValueB, crypt::Constants::keyForSmartCard_size, encryptedValueB, &lengthOfEncryptedA, hCard, pioSendPci);
 	
-	
+	/*
 	//Decrypt value A from card
 	BYTE ValueA[Constants::DerivedKeyLength];
 	decryptcbcAES(encryptedValueB, Constants::DerivedKeyLength, derivedKEY, iv, ValueA);
@@ -283,6 +273,10 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 		memcpy(establishedKey, sharedKey, Constants::DerivedKeyLength);
 		return 0;
 	}
+	*/
+	fclose(f);
+
+	return 0;
 }
 
 
@@ -301,8 +295,38 @@ LONG SmartCard::SmartCard::encryptKey(byte * pin, DWORD pin_length, byte * key, 
 	}
 	
 
+	BYTE kii[Constants::DerivedKeyLength];
+
+	buildChannel(Constants::testPin, 4, iv, &hCard, &pioSendPci, kii);
+
 	return 0;
 }
+
+
+//TESTING ONLY
+LONG SmartCard::SmartCard::testBuildChannel() {
+
+	LONG status;
+
+	SCARDHANDLE hCard;
+	SCARD_IO_REQUEST pioSendPci;
+
+
+	//inicialize vector (all zeros for now)
+	byte iv[AES::BLOCKSIZE];
+	for (int i = 0; i < AES::BLOCKSIZE; i++) {
+		iv[i] = 0x00;
+	}
+
+
+	BYTE key[Constants::DerivedKeyLength];
+
+	SmartCard::buildChannel(Constants::testPin, 4, iv, &hCard, &pioSendPci, key);
+
+	return 0;
+}
+
+
 
 int SmartCard::SmartCard::decryptKey(byte * pin, int pin_length, byte * encryptedKey, int encryptKey_length, byte * decryptedKey, int * decryptedKey_length) {
 	return 0;
