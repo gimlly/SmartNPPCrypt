@@ -202,7 +202,7 @@ LONG computeDHexponentation(BYTE *exponent, int expLength, BYTE *generator, int 
 unsigned int SmartCard::SmartCard::deriveKey(BYTE * output, BYTE * pin) {
 
 	PKCS5_PBKDF2_HMAC<SHA256> pbkdf2;
-	pbkdf2.DeriveKey(output, Constants::DerivedKeyLength, 0, NULL, 0, Constants::salt, Constants::saltLength, Constants::PBKDFIterations, 0);
+	pbkdf2.DeriveKey(output, Constants::AESKeyLength, 0, NULL, 0, Constants::salt, Constants::saltLength, Constants::PBKDFIterations, 0);
 
 	return 0;
 }
@@ -258,9 +258,8 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	memset(randomBuff, 0x00, crypt::Constants::keyForSmartCard_size - 1);
 	memset(randomBuff + (crypt::Constants::keyForSmartCard_size - 1), 0x01, 1);
 
-	//OS_GenerateRandomBlock(true, randomBuff, crypt::Constants::keyForSmartCard_size);
+	OS_GenerateRandomBlock(true, randomBuff, crypt::Constants::keyForSmartCard_size);
 	computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, &Constants::DH_generator,1, ValueB, Constants::DH_MODULO_SIZE);
-	//computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, ValueB, Constants::DH_MODULO_SIZE);
 
 
 	//derive key (add pin)
@@ -270,17 +269,9 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	//testing only
 	BYTE derivedKEY[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
 
-	fprintf(f, "\n");
-	fprintf(f, "derived Key:\n");
-
-	for (int i = 0; i < 16; i++) {
-		fprintf(f, "%02X ", derivedKEY[i]);
-	}
-	fprintf(f, "\n");
-
 	//enrypt value B with derived key and send it to card
 	BYTE encryptedValueB[Constants::DH_MODULO_SIZE];
-	enryptcbcAES(ValueB, Constants::DH_MODULO_SIZE, derivedKEY, Constants::DerivedKeyLength, iv, encryptedValueB);
+	enryptcbcAES(ValueB, Constants::DH_MODULO_SIZE, derivedKEY, Constants::AESKeyLength, iv, encryptedValueB);
 
 	//-------TESTING--------
 
@@ -312,7 +303,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 
 	//Decrypt value A from card
 	BYTE ValueA[Constants::DH_MODULO_SIZE];
-	decryptcbcAES(encryptedValueA, Constants::DH_MODULO_SIZE, derivedKEY, Constants::DerivedKeyLength, iv, ValueA);
+	decryptcbcAES(encryptedValueA, Constants::DH_MODULO_SIZE, derivedKEY, Constants::AESKeyLength, iv, ValueA);
 
 	fprintf(f, "\n");
 	fprintf(f, "Decrypted A :\n");
@@ -335,7 +326,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	}
 	fprintf(f, "\n");
 
-	BYTE sharedKey[Constants::DerivedKeyLength];
+	BYTE sharedKey[Constants::AESKeyLength];
 
 	//sha 256
 	hashAndXor(dhKey, sharedKey, Constants::DH_MODULO_SIZE);
@@ -366,7 +357,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	fprintf(f, "\n");
 
 	BYTE *encryptedVerificationStr = new BYTE[verificationStringLen + padding];
-	enryptcbcAES(verificationStr, verificationStringLen + padding, sharedKey, Constants::DerivedKeyLength, iv, encryptedVerificationStr);
+	enryptcbcAES(verificationStr, verificationStringLen + padding, sharedKey, Constants::AESKeyLength, iv, encryptedVerificationStr);
 
 	fprintf(f, "\n");
 	fprintf(f, "encrypted verification string :\n");
@@ -383,8 +374,18 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	//check values
 	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_CHECKCHANNEL, Constants::DH_MODULO_SIZE, pin_length, encryptedVerificationStr, verificationStringLen + padding, encryptedCheckBValue, &checkReturnLen, hCard, pioSendPci);
 	
+
+	fprintf(f, "\n");
+	fprintf(f, "encrypted check B value:\n");
+
+	for (int i = 0; i < 192; i++) {
+		fprintf(f, "%02X ", encryptedCheckBValue[i]);
+	}
+	fprintf(f, "\n");
+
+
 	BYTE chechBValue[Constants::DH_MODULO_SIZE];
-	decryptcbcAES(encryptedValueB, Constants::DH_MODULO_SIZE, sharedKey, Constants::DerivedKeyLength, iv, chechBValue);
+	decryptcbcAES(encryptedCheckBValue, Constants::DH_MODULO_SIZE, sharedKey, Constants::AESKeyLength, iv, chechBValue);
 
 
 	fprintf(f, "\n");
@@ -397,7 +398,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	
 	if (memcmp(ValueB, chechBValue, Constants::DH_MODULO_SIZE) == 0) {
 		
-		memcpy(establishedKey, sharedKey, Constants::DerivedKeyLength);
+		memcpy(establishedKey, sharedKey, Constants::AESKeyLength);
 
 		fprintf(f, "heureka :\n");
 		fclose(f);
@@ -412,24 +413,45 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 
 LONG SmartCard::SmartCard::encryptKey(byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encrypted, DWORD * encryptedKey_length) {
 	
-	LONG status;
 	
+	encryptDecryptKey(Constants::FETCH_FILEKEY_ENCRYPT, pin, pin_length, key, key_length, encrypted, encryptedKey_length);
+
+
+	return 0;
+}
+
+LONG SmartCard::SmartCard::decryptKey(byte* pin, DWORD pin_length, byte* encryptedKey, DWORD encryptKey_length, byte* decryptedKey, DWORD* decryptedKey_length) {
+
+	encryptDecryptKey(Constants::FETCH_FILEKEY_DECRYPT, pin, pin_length, encryptedKey, encryptKey_length, decryptedKey, decryptedKey_length);
+
+	return 0;
+}
+
+LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encryptedDecrypted, DWORD * encryptedDecryptedKey_length) {
+
+	LONG status;
+
 	SCARDHANDLE hCard;
 	SCARD_IO_REQUEST pioSendPci;
 
+	BYTE sessionKey[Constants::AESKeyLength];
 
 	//inicialize vector (all zeros for now)
 	byte iv[AES::BLOCKSIZE];
 	for (int i = 0; i < AES::BLOCKSIZE; i++) {
 		iv[i] = 0x00;
 	}
+
 	
 
-	BYTE kii[Constants::DerivedKeyLength];
+	if (buildChannel(pin, pin_length, iv, &hCard, &pioSendPci, sessionKey) == 0) {
 
-	buildChannel(Constants::testPin, 4, iv, &hCard, &pioSendPci, kii);
+		sendADPDU(Constants::appletCLA, Constants::INS_FETCH_FILEKEY, mode, 0x00, key, key_length, encryptedDecrypted, encryptedDecryptedKey_length, &hCard, &pioSendPci);
+		return 0;
+	}
 
-	return 0;
+
+	return 1;
 }
 
 
@@ -449,15 +471,10 @@ LONG SmartCard::SmartCard::testBuildChannel() {
 	}
 
 
-	BYTE key[Constants::DerivedKeyLength];
+	BYTE key[Constants::AESKeyLength];
 
 	SmartCard::buildChannel(Constants::testPin, 4, iv, &hCard, &pioSendPci, key);
 
 	return 0;
 }
 
-
-
-int SmartCard::SmartCard::decryptKey(byte * pin, int pin_length, byte * encryptedKey, int encryptKey_length, byte * decryptedKey, int * decryptedKey_length) {
-	return 0;
-}

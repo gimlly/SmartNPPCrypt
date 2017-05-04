@@ -11,8 +11,9 @@ namespace SmartCard
 		static BYTE AppletID[] = { 0x73,  0x69,  0x6D,  0x70,  0x6C, 0x65,  0x61,  0x70,  0x70,  0x6C,  0x65,  0x74 };
 		static byte appletCLA = 0xb0;
 		static byte INS_BuildChannel = 0x71;
-		static byte INS_ENCRYPT_FILEKEY = 0x85;
-		static byte INS_DECRYPT_FILEKEY = 0x87;
+		static byte INS_FETCH_FILEKEY = 0x77;
+		static byte FETCH_FILEKEY_ENCRYPT = 0x02;
+		static byte FETCH_FILEKEY_DECRYPT = 0x01;
 		static byte INS_CHECKCHANNEL = 0x73;
 		static const size_t DH_MODULO_SIZE = 192;
 		static BYTE DH_generator = { 0x02 };
@@ -25,7 +26,7 @@ namespace SmartCard
 			0x83, 0x65, 0x5D, 0x23, 0xDC, 0xA3, 0xAD, 0x96, 0x1C, 0x62, 0xF3, 0x56, 0x20, 0x85, 0x52, 0xBB, 0x9E, 0xD5, 0x29, 0x07, 0x70, 0x96, 0x96, 0x6D,
 			0x67, 0x0C, 0x35, 0x4E, 0x4A, 0xBC, 0x98, 0x04, 0xF1, 0x74, 0x6C, 0x08, 0xCA, 0x23, 0x73, 0x27, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 		static size_t PBKDFIterations = 10000;
-		static const size_t DerivedKeyLength = 16;
+		static const size_t AESKeyLength = 16;
 		static BYTE salt[] = { 0x12, 0x34, 0x56 };
 		static size_t saltLength = 3;
 		static BYTE successADPU[] = { 0x90, 0x00 };
@@ -45,6 +46,7 @@ namespace SmartCard
 		static LONG selectApplet(SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci);
 		static unsigned int deriveKey(BYTE *output, BYTE *pin);
 		static LONG buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey);
+		static LONG encryptDecryptKey(byte operation, byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encrypted, DWORD * encryptedKey_length);
 	public:
 		
 
@@ -52,8 +54,8 @@ namespace SmartCard
 
 		static bool  isReaderAvailable();
 		static bool  isSmartCardAvailable();
-		LONG encryptKey(byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encrypted, DWORD * encryptedKey_length);
-		static int decryptKey(byte* pin, int pin_length, byte* encryptedKey, int encryptKey_length, byte* decryptedKey, int* decryptedKey_length);
+		static LONG encryptKey(byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encrypted, DWORD * encryptedKey_length);
+		static LONG decryptKey(byte* pin, DWORD pin_length, byte* encryptedKey, DWORD encryptKey_length, byte* decryptedKey, DWORD* decryptedKey_length);
 	};
 };
 
