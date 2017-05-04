@@ -163,7 +163,7 @@ bool CryptHeaderReader::parse(const byte* in, size_t in_len)
 	if (xml_smartCard) {
 		const char* t = xml_smartCard->Attribute("value");
 		if (t) {
-			if (strlen(t) > crypt::Constants::keyForSmartCard_size) {
+			if (strlen(t) > crypt::Constants::keyForSmartCard_size*2) {
 				throw CExc(CExc::Code::header_smartCard_keyValue);
 			}
 			t_options.keyForSmartCard = std::string(t);
