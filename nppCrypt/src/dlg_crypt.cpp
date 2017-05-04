@@ -375,7 +375,11 @@ void DlgCrypt::initDialog()
 	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CARD_STATE, TEXT("NO"));
 	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_READER_STATE, TEXT("NO"));
 
-	if ((cipher_flags[int(cipher)] & C_AES) == C_AES) {
+	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("aes cand."));
+	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_SMARTCARD, TEXT("cast-256"));
+	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_MODE_SMARTCARD, TEXT("ecb"));
+	
+	/*if ((cipher_flags[int(cipher)] & C_AES) == C_AES) {
 		::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("aes cand."));
 	}
 	else if ((cipher_flags[int(cipher)] & C_OTHER) == C_OTHER) {
@@ -389,7 +393,7 @@ void DlgCrypt::initDialog()
 	}
 	else {
 		::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("NO CIPHER TYPE"));
-	}
+	}*/
 	
 	OnCipherCategoryChange(category, false);
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_SETCURSEL, crypt::help::getCipherIndex(t_cipher), 0);
