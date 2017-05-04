@@ -998,7 +998,7 @@ bool DlgCrypt::OnClickOKSmartCard()
 					encryptedKey_hex[i * 2] += 48;
 				}
 
-				encryptedKey_hex[i * 2 + 1] = encryptedKey[i] >> 4;
+				encryptedKey_hex[i * 2 + 1] = encryptedKey[i] & 0x0f;
 				if (encryptedKey_hex[i * 2 + 1] > 9)
 				{
 					encryptedKey_hex[i * 2 + 1] += 55;

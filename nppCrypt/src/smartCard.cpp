@@ -357,10 +357,10 @@ LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_le
 
 	if (buildChannel(pin, pin_length, iv, &hCard, &pioSendPci, sessionKey) == 0) {
 
-		BYTE *keyEncriptedWithSessionKey = new BYTE(key_length);
-		BYTE *keyEncryptedWithKek = new BYTE(key_length);
+		BYTE keyEncriptedWithSessionKey[crypt::Constants::keyForSmartCard_size];
+		BYTE keyEncryptedWithKek[crypt::Constants::keyForSmartCard_size];
 
-		DWORD sizeOfKekEcryptedKey = key_length;
+		DWORD sizeOfKekEcryptedKey = crypt::Constants::keyForSmartCard_size;
 
 		enryptcbcAES(key, key_length, sessionKey, Constants::AESKeyLength, iv, keyEncriptedWithSessionKey);
 
@@ -369,6 +369,17 @@ LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_le
 		
 		decryptcbcAES(keyEncryptedWithKek, sizeOfKekEcryptedKey, sessionKey, Constants::AESKeyLength, iv, encryptedDecrypted);
 		
+		fprintf(f, "\n");
+		fprintf(f, "finito:\n");
+
+		for (int i = 0; i < crypt::Constants::keyForSmartCard_size; i++) {
+			fprintf(f, "%02X ", encryptedDecrypted[i]);
+
+		}
+		fprintf(f, "\n");
+
+
+
 		fclose(f);
 		return 0;
 	}
