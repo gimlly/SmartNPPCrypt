@@ -38,7 +38,25 @@ LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, b
 	DWORD retSize = 300;
 	BYTE retAPDU[300];
 
+
+	for (int i = 0; i < dataSize + 5; i++) {
+		fprintf(f, "%02X ", apdu[i]);
+
+	}
+
+	fprintf(f, "\n");
+
 	returnValue = SCardTransmit(*hCard, pioSendPci, apdu, dataSize + 5, NULL, retAPDU, &retSize);
+
+	fprintf(f, "\n");
+	fprintf(f, "size of return data is: %lu\n", retSize);
+
+	for (int i = 0; i < retSize; i++) {
+		fprintf(f, "%02X ", retAPDU[i]);
+
+	}
+
+	fprintf(f, "\n");
 
 	if (memcmp(retAPDU + (retSize - 2), Constants::successADPU, 2) == 0) {
 		memcpy(returnData, retAPDU, retSize - 2);
@@ -207,6 +225,15 @@ LONG hashAndXor(BYTE *input, BYTE *output, size_t length) {
 
 LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey) {
 
+	fprintf(f, "\n");
+	fprintf(f, "Fucking pin: ");
+
+	for (int i = 0; i < pin_length; i++) {
+		fprintf(f, "%02X ", pin[i]);
+
+	}
+
+
 	//select applet on card
 	SmartCard::selectApplet(hCard, pioSendPci);
 	
@@ -261,6 +288,14 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	memcpy(verificationStr + Constants::DH_MODULO_SIZE, pin, pin_length);
 	memset(verificationStr + verificationStringLen, 0x00, padding);
 
+	fprintf(f, "\n");
+	fprintf(f, "verification apdu:\n");
+
+	for (int i = 0; i < verificationStringLen + padding; i++) {
+		fprintf(f, "%02X ", verificationStr[i]);
+
+	}
+
 	BYTE *encryptedVerificationStr = new BYTE[verificationStringLen + padding];
 	enryptcbcAES(verificationStr, verificationStringLen + padding, sharedKey, Constants::AESKeyLength, iv, encryptedVerificationStr);
 	
@@ -303,6 +338,8 @@ LONG SmartCard::SmartCard::decryptKey(byte* pin, DWORD pin_length, byte* encrypt
 
 LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encryptedDecrypted, DWORD * encryptedDecryptedKey_length) {
 
+
+	f = fopen("C:\\Users\\Public\\Documents\\output.txt", "w");
 	LONG status;
 
 	SCARDHANDLE hCard;
@@ -320,10 +357,23 @@ LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_le
 
 	if (buildChannel(pin, pin_length, iv, &hCard, &pioSendPci, sessionKey) == 0) {
 
-		sendADPDU(Constants::appletCLA, Constants::INS_FETCH_FILEKEY, mode, 0x00, key, key_length, encryptedDecrypted, encryptedDecryptedKey_length, &hCard, &pioSendPci);
+		BYTE *keyEncriptedWithSessionKey = new BYTE(key_length);
+		BYTE *keyEncryptedWithKek = new BYTE(key_length);
+
+		DWORD sizeOfKekEcryptedKey = key_length;
+
+		enryptcbcAES(key, key_length, sessionKey, Constants::AESKeyLength, iv, keyEncriptedWithSessionKey);
+
+
+		sendADPDU(Constants::appletCLA, Constants::INS_FETCH_FILEKEY, mode, 0x00, keyEncriptedWithSessionKey, key_length, keyEncryptedWithKek, &sizeOfKekEcryptedKey, &hCard, &pioSendPci);
+		
+		decryptcbcAES(keyEncryptedWithKek, sizeOfKekEcryptedKey, sessionKey, Constants::AESKeyLength, iv, encryptedDecrypted);
+		
+		fclose(f);
 		return 0;
 	}
 
+	fclose(f);
 
 	return 1;
 }
