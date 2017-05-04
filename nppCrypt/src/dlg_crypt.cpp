@@ -962,8 +962,16 @@ bool DlgCrypt::OnClickOKSmartCard()
 			#endif
 			int length_of_encrypted_key = crypt::Constants::keyForSmartCard_size;
 			byte encryptedKey[crypt::Constants::keyForSmartCard_size];
-			LONG result = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), 
-														   (DWORD)(t_pin.size()), 
+			char* pin = (char*)(t_pin.c_str());
+			char parsedPin[crypt::Constants::pin_size];
+
+			for (int i = 0; i < t_pin.size() / 2; i++)
+			{
+				parsedPin[i] = pin[i * 2];
+			}
+			
+			LONG result = SmartCard::SmartCard::encryptKey((byte*)parsedPin,
+														   (DWORD)(t_pin.size()/2), 
 														   key, 
 														   (DWORD)(crypt::Constants::keyForSmartCard_size), 
 														   encryptedKey, 
