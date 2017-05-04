@@ -35,36 +35,17 @@ LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, b
 		}
 	}
 
-
 	DWORD retSize = 300;
 	BYTE retAPDU[300];
-
-	for (int i = 0; i < dataSize + 5; i++) {
-		fprintf(f, "%02X ", apdu[i]);
-	}
-
-	fprintf(f, "\n");
-
 
 	returnValue = SCardTransmit(*hCard, pioSendPci, apdu, dataSize + 5, NULL, retAPDU, &retSize);
 
 	if (memcmp(retAPDU + (retSize - 2), Constants::successADPU, 2) == 0) {
 		memcpy(returnData, retAPDU, retSize - 2);
-	//	return 0;
+		return 0;
 	};
 
-
-	//For DEBUG only!
-
-	fprintf(f, "\n" );
-	fprintf(f, "size of return data is: %lu\n", retSize);
-
-	for (int i = 0; i < retSize; i++) {
-		fprintf(f,"%02X ", retAPDU[i]);
-	}
-
-	fprintf(f, "\n");
-	return returnValue;
+	return 1;
 }
 
 LONG SmartCard::SmartCard::connectToCard( SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci) {
@@ -144,26 +125,9 @@ LONG enryptcbcAES(BYTE *plain, size_t length, BYTE *key, size_t keyLen, BYTE *iv
 
 LONG decryptcbcAES(BYTE *cryptoText, size_t length, BYTE *key, size_t keyLen, BYTE *iv, BYTE *plain) {
 
-
-
-
 	CBC_Mode< AES >::Decryption decryptor;
 	decryptor.SetKeyWithIV(key, keyLen, iv);
 	decryptor.ProcessData(plain, cryptoText, length);
-
-
-	/*
-
-	std::string plainText;
-	AES::Decryption aesDecryption(key, keyLen);
-	CBC_Mode_ExternalCipher::Decryption cbcDecryption(aesDecryption, iv);
-
-	CryptoPP::StreamTransformationFilter stfEncryptor(cbcDecryption, new StringSink(plainText));
-	stfEncryptor.Put(cryptoText, length);
-	stfEncryptor.MessageEnd();
-	*/
-
-	//memcpy(plain, plainText.c_str(), length);
 
 	return 0;
 
@@ -221,18 +185,9 @@ bool SmartCard::SmartCard::isSmartCardAvailable() {
 LONG hashAndXor(BYTE *input, BYTE *output, size_t length) {
 	
 	BYTE hash[SHA256::DIGESTSIZE];
-
 	SHA256 sha;
 
 	sha.CalculateDigest(hash, input, length);
-
-	fprintf(f, "\n");
-	fprintf(f, "Hash before xor :\n");
-
-	for (int i = 0; i < 32; i++) {
-		fprintf(f, "%02X ", hash[i]);
-	}
-	fprintf(f, "\n");
 
 	for (int i = 0; i < SHA256::DIGESTSIZE / 2; i++) {
 		output[i] = hash[i] ^ hash[i + SHA256::DIGESTSIZE / 2];
@@ -243,8 +198,6 @@ LONG hashAndXor(BYTE *input, BYTE *output, size_t length) {
 
 
 LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey) {
-
-	f = fopen("C:\\Users\\Public\\Documents\\output.txt", "w");
 
 	//select applet on card
 	SmartCard::selectApplet(hCard, pioSendPci);
@@ -273,71 +226,23 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	BYTE encryptedValueB[Constants::DH_MODULO_SIZE];
 	enryptcbcAES(ValueB, Constants::DH_MODULO_SIZE, derivedKEY, Constants::AESKeyLength, iv, encryptedValueB);
 
-	//-------TESTING--------
-
-	fprintf(f, "\n");
-	fprintf(f, "before:\n");
-
-	for (int i = 0; i < 192; i++) {
-		fprintf(f, "%02X ", ValueB[i]);
-	}
-	fprintf(f, "\n");
-
-	//-------TESTING--------
-
 	DWORD lengthOfEncryptedA = Constants::DH_MODULO_SIZE;
 	BYTE encryptedValueA[Constants::DH_MODULO_SIZE];
 	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_BuildChannel, Constants::DH_MODULO_SIZE, 0x00, encryptedValueB, Constants::DH_MODULO_SIZE, encryptedValueA, &lengthOfEncryptedA, hCard, pioSendPci);
-	
-	//------------------------------
-	fprintf(f, "\n");
-	fprintf(f, "Encrypted A:\n");
-
-	for (int i = 0; i < 192; i++) {
-		fprintf(f, "%02X ", encryptedValueA[i]);
-	}
-	fprintf(f, "\n");
-
-	//------------------------------
-
 
 	//Decrypt value A from card
 	BYTE ValueA[Constants::DH_MODULO_SIZE];
 	decryptcbcAES(encryptedValueA, Constants::DH_MODULO_SIZE, derivedKEY, Constants::AESKeyLength, iv, ValueA);
-
-	fprintf(f, "\n");
-	fprintf(f, "Decrypted A :\n");
-
-	for (int i = 0; i < 192; i++) {
-		fprintf(f, "%02X ", ValueA[i]);
-	}
-	fprintf(f, "\n");
 	
 	//compute shared key from by DH protocol with value A from card
 	BYTE dhKey[Constants::DH_MODULO_SIZE];
 	computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, ValueA, 192, dhKey, Constants::DH_MODULO_SIZE);
 	//computeDHexponentation(ValueA, Constants::DH_MODULO_SIZE, dhKey, Constants::DH_MODULO_SIZE);
 
-	fprintf(f, "\n");
-	fprintf(f, "DH key  :\n");
-
-	for (int i = 0; i < 192; i++) {
-		fprintf(f, "%02X ", dhKey[i]);
-	}
-	fprintf(f, "\n");
-
 	BYTE sharedKey[Constants::AESKeyLength];
 
 	//sha 256
 	hashAndXor(dhKey, sharedKey, Constants::DH_MODULO_SIZE);
-
-	fprintf(f, "\n");
-	fprintf(f, "shared key :\n");
-
-	for (int i = 0; i < 16; i++) {
-		fprintf(f, "%02X ", sharedKey[i]);
-	}
-	fprintf(f, "\n");
 
 	size_t verificationStringLen = Constants::DH_MODULO_SIZE + pin_length;
 	size_t padding = 16 - (verificationStringLen % 16);
@@ -347,25 +252,9 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	memcpy(verificationStr, ValueA, Constants::DH_MODULO_SIZE);
 	memcpy(verificationStr + Constants::DH_MODULO_SIZE, pin, pin_length);
 	memset(verificationStr + verificationStringLen, 0x00, padding);
-	
-	fprintf(f, "\n");
-	fprintf(f, "verification string :\n");
-
-	for (int i = 0; i < verificationStringLen + padding; i++) {
-		fprintf(f, "%02X ", verificationStr[i]);
-	}
-	fprintf(f, "\n");
 
 	BYTE *encryptedVerificationStr = new BYTE[verificationStringLen + padding];
 	enryptcbcAES(verificationStr, verificationStringLen + padding, sharedKey, Constants::AESKeyLength, iv, encryptedVerificationStr);
-
-	fprintf(f, "\n");
-	fprintf(f, "encrypted verification string :\n");
-
-	for (int i = 0; i < verificationStringLen + padding; i++) {
-		fprintf(f, "%02X ", encryptedVerificationStr[i]);
-	}
-	fprintf(f, "\n");
 	
 	DWORD checkReturnLen = 300;
 
@@ -373,39 +262,16 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 
 	//check values
 	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_CHECKCHANNEL, Constants::DH_MODULO_SIZE, pin_length, encryptedVerificationStr, verificationStringLen + padding, encryptedCheckBValue, &checkReturnLen, hCard, pioSendPci);
-	
-
-	fprintf(f, "\n");
-	fprintf(f, "encrypted check B value:\n");
-
-	for (int i = 0; i < 192; i++) {
-		fprintf(f, "%02X ", encryptedCheckBValue[i]);
-	}
-	fprintf(f, "\n");
 
 
 	BYTE chechBValue[Constants::DH_MODULO_SIZE];
 	decryptcbcAES(encryptedCheckBValue, Constants::DH_MODULO_SIZE, sharedKey, Constants::AESKeyLength, iv, chechBValue);
-
-
-	fprintf(f, "\n");
-	fprintf(f, "Decrypted B to compare :\n");
-
-	for (int i = 0; i < 192; i++) {
-		fprintf(f, "%02X ", chechBValue[i]);
-	}
-	fprintf(f, "\n");
 	
 	if (memcmp(ValueB, chechBValue, Constants::DH_MODULO_SIZE) == 0) {
 		
 		memcpy(establishedKey, sharedKey, Constants::AESKeyLength);
-
-		fprintf(f, "heureka :\n");
-		fclose(f);
 		return 0;
 	}
-	fprintf(f, "FUCK YOUUU:\n");
-	fclose(f);
 
 	return 1;
 }
