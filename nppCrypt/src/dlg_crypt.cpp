@@ -982,6 +982,15 @@ bool DlgCrypt::OnClickOKSmartCard()
 														   (DWORD*)(&length_of_encrypted_key));
 			if (result != 0)
 			{
+				if (result == 5)
+				{
+					::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_STATIC_PIN_STATUS, TEXT("BAD PIN"));
+				}
+				else
+				{
+					::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_STATIC_PIN_STATUS, TEXT(""));
+				}
+
 				return false;
 			}
 																
@@ -1052,6 +1061,14 @@ bool DlgCrypt::OnClickOKSmartCard()
 														   (DWORD*) (&length_of_decrypted_key));
 			if (result != 0)
 			{
+				if (result == 5)
+				{
+					::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_STATIC_PIN_STATUS, TEXT("BAD PIN"));
+				}
+				else
+				{
+					::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_STATIC_PIN_STATUS, TEXT(""));
+				}
 				return false;
 			}
 
