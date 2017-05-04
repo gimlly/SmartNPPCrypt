@@ -112,11 +112,13 @@ public class SimpleApplet extends javacard.framework.Applet {
             // go to proprietary data
             dataOffset++;
 
-            //Init EEPROM arrays
-            m_dataArray1 = new byte[ARRAY_LENGTH];
-            m_dataArray2 = new byte[ARRAY_LENGTH];
+            //Init arrays. Data arrays contain semi-long-term data, Ram arrays contain short term data
+            m_dataArray1 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            m_dataArray2 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            m_ramArray1 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            m_ramArray2 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
 
-            // Copy install params to EEPROM.
+            // Copy install params to memory
             // Install params are 36 B long:
             // 4 B  PIN
             // 16 B hash (m_HashKey)
@@ -128,9 +130,8 @@ public class SimpleApplet extends javacard.framework.Applet {
 
             // INITIALIZE RNG, RSA, KEY
             m_secureRandom = RandomData.getInstance(RandomData.ALG_SECURE_RANDOM);
-            m_secureRandom.setSeed(m_dataArray1, SZERO, (short) 0x04);
             m_DHCipher = Cipher.getInstance(Cipher.ALG_RSA_NOPAD, false);
-			m_DHKey = (RSAPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PRIVATE, KeyBuilder.LENGTH_RSA_1536, false);
+            m_DHKey = (RSAPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_RSA_PRIVATE, KeyBuilder.LENGTH_RSA_1536, false);
             
             // INIT HASH ENGINE
             m_hash = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
@@ -146,19 +147,15 @@ public class SimpleApplet extends javacard.framework.Applet {
             
             // CREATE KEK OBJECT, KEK CIPHER ENGINE
             m_KEK = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_128, false);
-			m_KEK.setKey(m_dataArray1, INST_OFFSET_KEK);
+            m_KEK.setKey(m_dataArray1, INST_OFFSET_KEK);
             m_KEK_Cipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
             
             //store initial PIN, with tryLimit and maxPINsize
-            m_pin = new OwnerPIN((byte) 127, (byte) 16);
+            m_pin = new OwnerPIN((byte) 3, (byte) 16);
             m_pin.update(m_dataArray1, BZERO, (byte) 4);
             
-            // TEMPORARY BUFFER USED FOR FAST OPERATION WITH MEMORY LOCATED IN RAM
-            m_ramArray1 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            m_ramArray2 = JCSystem.makeTransientByteArray(ARRAY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            
-            // Set EEPROM to zeros. Other data will be stored in EEPROM
-            //Util.arrayFillNonAtomic(m_dataArray1, SZERO, ARRAY_LENGTH, BZERO);
+            // Wipe memory
+            Util.arrayFillNonAtomic(m_dataArray1, SZERO, ARRAY_LENGTH, BZERO);
 
             // update flag
             isOP2 = true;
@@ -238,19 +235,19 @@ public class SimpleApplet extends javacard.framework.Applet {
         short       lenA = 0;
         short       lenB = 0;
         short       pad = 0;
-  	
-        //reset ciphers, wipe arrays
-        Util.arrayFillNonAtomic(m_dataArray1, SZERO, ARRAY_LENGTH, BZERO);
-        Util.arrayFillNonAtomic(m_dataArray2, SZERO, ARRAY_LENGTH, BZERO);
+  		
+		
+	//reset ciphers
 	m_encryptCipher.init(m_HashKey, Cipher.MODE_ENCRYPT);
         m_decryptCipher.init(m_HashKey, Cipher.MODE_DECRYPT);
+	Util.arrayFillNonAtomic(m_dataArray1, SZERO, ARRAY_LENGTH, BZERO);
+	Util.arrayFillNonAtomic(m_dataArray2, SZERO, ARRAY_LENGTH, BZERO);
 		
         //Note: Diffie-Hellman using RSA works better when using MODE_DECRYPT
         //      The result is still the same though
         
         //Generate random exponent
-//        m_secureRandom.generateData(m_ramArray1, SZERO, RANDOM_LENGTH);
-		Util.arrayFillNonAtomic(m_ramArray1, SZERO, RANDOM_LENGTH, BZERO);
+        m_secureRandom.generateData(m_ramArray1, SZERO, RANDOM_LENGTH);
 
         //Compute A (Fill RSAKey with exponent, modulus, init cipher, decrypt)
         m_DHKey.setExponent(m_ramArray1, SZERO, RANDOM_LENGTH);
@@ -260,13 +257,6 @@ public class SimpleApplet extends javacard.framework.Applet {
 
         // store A in permanent memory, to validate channel later
         Util.arrayCopyNonAtomic(m_ramArray1, SZERO, m_dataArray1, (short) (DH_LENGTH - lenA), lenA);
-        
-        // calculate pad length
-        pad = (short) (DH_LENGTH - lenA);
-        // generate random padding
-        if (pad > 0) {
-        m_secureRandom.generateData(m_ramArray1, lenA, pad);
-		}
 
         //(AES) Encrypt A with preshared secret, store it in ram array
         m_encryptCipher.doFinal(m_ramArray1, SZERO, (short) (lenA + pad), m_ramArray2, SZERO);
@@ -276,19 +266,18 @@ public class SimpleApplet extends javacard.framework.Applet {
         m_decryptCipher.doFinal(apdubuf, ISO7816.OFFSET_CDATA, dataLen, m_ramArray1, SZERO);
         lenB = (short) (apdubuf[ISO7816.OFFSET_P1] & 0x00FF);
 
-        //store B in permanent memory, to validate channel later
-        Util.arrayCopyNonAtomic(m_ramArray1, SZERO, m_dataArray2, (short) (DH_LENGTH - lenB), lenB);
+        //store B in long-term memory, to validate channel later
+        Util.arrayCopyNonAtomic(m_ramArray1, SZERO, m_dataArray2, SZERO, DH_LENGTH);
         
-        //Copy encrypted A to APDU (from card to plugin), set padless data length
+        //Copy encrypted A to APDU (from card to plugin), set padless data length as first byte of data
         Util.arrayCopyNonAtomic(m_ramArray2, SZERO, apdubuf, ISO7816.OFFSET_CDATA, (short) (lenA + pad));
-        apdubuf[ISO7816.OFFSET_P1] = (byte) lenA;
 		
-        //need to pad ramArray1 from the left with zeros, wipe ramArray2
-		if (lenB != DH_LENGTH) {
-			Util.arrayCopyNonAtomic(m_ramArray1, SZERO, m_ramArray1, (short) (DH_LENGTH - lenB), lenB);
-			Util.arrayFillNonAtomic(m_ramArray1, SZERO, (short) (DH_LENGTH - lenB - 1), BZERO);
-			Util.arrayFillNonAtomic(m_ramArray2, SZERO, ARRAY_LENGTH, BZERO);
-		}
+        //need to pad ramArray1 from the left with zeros, wipe ramArray2. This shouldn't ever happen though
+        if (lenB != DH_LENGTH) {
+            Util.arrayCopyNonAtomic(m_ramArray1, SZERO, m_ramArray1, (short) (DH_LENGTH - lenB), lenB);
+            Util.arrayFillNonAtomic(m_ramArray1, SZERO, (short) (DH_LENGTH - lenB - 1), BZERO);
+            Util.arrayFillNonAtomic(m_ramArray2, SZERO, ARRAY_LENGTH, BZERO);
+        }
 
         //(RSA) compute Primary Session Key
         m_DHCipher.init(m_DHKey, Cipher.MODE_DECRYPT); //init engine again to work properly
@@ -304,17 +293,8 @@ public class SimpleApplet extends javacard.framework.Applet {
         
         //insert key into KeyObject - sessionKey, init cipher
         m_sessionKey.setKey(m_ramArray1, SZERO);
-        
 		
-		/////////////////////////////////////////// BONUS //////////////////////////////////////////
-		
-		
-		
-		/////////////////////////////////////////// BONUS //////////////////////////////////////////
-		
-		
-		
-        //send APDU with encrypted A
+        //send APDU with encrypted A. Length = 1 byte parameter + length of data + padding to 192 bytes
         apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, (short) (lenA + pad));
     }
     
@@ -327,27 +307,23 @@ public class SimpleApplet extends javacard.framework.Applet {
     void CheckChannel(APDU apdu) {
         byte[]  apdubuf = apdu.getBuffer();
         short   dataLen = apdu.setIncomingAndReceive();
-        
-        m_encryptCipher.init(m_sessionKey, Cipher.MODE_ENCRYPT);
+		
+	m_encryptCipher.init(m_sessionKey, Cipher.MODE_ENCRYPT);
         m_decryptCipher.init(m_sessionKey, Cipher.MODE_DECRYPT);
 		
         //decrypt incoming APDU
         m_decryptCipher.doFinal(apdubuf, ISO7816.OFFSET_CDATA, dataLen, m_ramArray1, SZERO);
 		
         //validate pin
-        if (m_pin.check(m_ramArray1, ISO7816.OFFSET_P1, ISO7816.OFFSET_P2) == false) {
+        if (m_pin.check(m_ramArray1, (short) (apdubuf[ISO7816.OFFSET_P1] & 0x00FF), apdubuf[ISO7816.OFFSET_P2]) == false) {
             ISOException.throwIt(SW_BAD_PIN);            
         } else {
             //validate A
-            if (Util.arrayCompare(m_dataArray1, SZERO, m_ramArray1, SZERO, ISO7816.OFFSET_P1) != BZERO) {
+            if (Util.arrayCompare(m_dataArray1, SZERO, m_ramArray1, SZERO, (short) (apdubuf[ISO7816.OFFSET_P1] & 0x00FF)) != BZERO) {
                 ISOException.throwIt(SW_BAD_DATA);
-            }
-            
+            }            
             //encrypt B with session key, put it into APDU buffer
             m_encryptCipher.doFinal(m_dataArray2, SZERO, DH_LENGTH, apdubuf, ISO7816.OFFSET_CDATA);
-            
-            //prepare APDU to send. THESE 192 BYTES ARE NOT PADDED!
-            apdubuf[ISO7816.OFFSET_P1] = (byte) DH_LENGTH;
             
             //Send APDU with encrypted B
             apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, DH_LENGTH);
@@ -356,7 +332,7 @@ public class SimpleApplet extends javacard.framework.Applet {
 
     /**
      * Send FileKey in APDU, so card can encrypt/decrypt it using KEK
-     * @param apdu UNPADDED 16 B FileKey
+     * @param apdu FileKey (multiple of 16 B)
      * P1:
      * MODE_ENCRYPT = 2
      * MODE_DECRYPT = 1
@@ -365,8 +341,11 @@ public class SimpleApplet extends javacard.framework.Applet {
         byte[]  apdubuf = apdu.getBuffer();
         short   dataLen = apdu.setIncomingAndReceive();
 
-		m_encryptCipher.init(m_sessionKey, Cipher.MODE_ENCRYPT);
+	m_encryptCipher.init(m_sessionKey, Cipher.MODE_ENCRYPT);
         m_decryptCipher.init(m_sessionKey, Cipher.MODE_DECRYPT);
+		
+        Util.arrayFillNonAtomic(m_ramArray1, SZERO, ARRAY_LENGTH, BZERO);
+        Util.arrayFillNonAtomic(m_ramArray2, SZERO, ARRAY_LENGTH, BZERO);
 		
         if (m_pin.isValidated()) {
             //Decrypt using session key, should be multiple of 16 bytes
@@ -375,10 +354,10 @@ public class SimpleApplet extends javacard.framework.Applet {
             m_KEK_Cipher.init(m_KEK, apdubuf[ISO7816.OFFSET_P1]);
             //encrypt/decrypt FileKey using KEK
             m_KEK_Cipher.doFinal(m_ramArray1, SZERO, dataLen, m_ramArray2, SZERO);
-			//encrypt using session key, same length as before
-			m_encryptCipher.doFinal(m_ramArray2, SZERO, dataLen, apdubuf, ISO7816.OFFSET_CDATA);
-			//send APDU
-            apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, AES_BLOCK_LENGTH);
+            //encrypt using session key, same length as before
+            m_encryptCipher.doFinal(m_ramArray2, SZERO, dataLen, apdubuf, ISO7816.OFFSET_CDATA);
+            //send APDU
+            apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, dataLen);
         } else {
             ISOException.throwIt(SW_NEED_PIN);
         }
