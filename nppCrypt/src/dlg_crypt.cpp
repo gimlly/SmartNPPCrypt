@@ -980,6 +980,10 @@ bool DlgCrypt::OnClickOKSmartCard()
 														   (DWORD)(crypt::Constants::keyForSmartCard_size), 
 														   encryptedKey, 
 														   (DWORD*)(&length_of_encrypted_key));
+			if (result != 0)
+			{
+				return false;
+			}
 																
 			if (encryptedKey == NULL)
 			{				
@@ -1046,7 +1050,11 @@ bool DlgCrypt::OnClickOKSmartCard()
 														   (DWORD)(crypt::Constants::keyForSmartCard_size),
 														   decryptedKey, 
 														   (DWORD*) (&length_of_decrypted_key));
-											 
+			if (result != 0)
+			{
+				return false;
+			}
+
 			if (decryptedKey == NULL)
 			{
 				return false;
