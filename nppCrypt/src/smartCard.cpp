@@ -27,8 +27,6 @@ LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, b
 	apdu[2] = p1;
 	apdu[3] = p2;
 
-
-
 	if (dataSize > 0) {
 		apdu[4] = (byte)dataSize ;
 
@@ -228,11 +226,18 @@ LONG hashAndXor(BYTE *input, BYTE *output, size_t length) {
 
 	sha.CalculateDigest(hash, input, length);
 
+	fprintf(f, "\n");
+	fprintf(f, "Hash before xor :\n");
+
+	for (int i = 0; i < 32; i++) {
+		fprintf(f, "%02X ", hash[i]);
+	}
+	fprintf(f, "\n");
+
 	for (int i = 0; i < SHA256::DIGESTSIZE / 2; i++) {
 		output[i] = hash[i] ^ hash[i + SHA256::DIGESTSIZE / 2];
 	}
 	
-
 	return 0;
 }
 
@@ -251,7 +256,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 
 	//debug DELETE!!
 	memset(randomBuff, 0x00, crypt::Constants::keyForSmartCard_size - 1);
-	memset(randomBuff + (crypt::Constants::keyForSmartCard_size - 1), 0xff, 1);
+	memset(randomBuff + (crypt::Constants::keyForSmartCard_size - 1), 0x01, 1);
 
 	//OS_GenerateRandomBlock(true, randomBuff, crypt::Constants::keyForSmartCard_size);
 	computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, &Constants::DH_generator,1, ValueB, Constants::DH_MODULO_SIZE);
@@ -284,19 +289,6 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 
 	for (int i = 0; i < 192; i++) {
 		fprintf(f, "%02X ", ValueB[i]);
-	}
-	fprintf(f, "\n");
-
-
-	BYTE test[Constants::DH_MODULO_SIZE];
-	decryptcbcAES(encryptedValueB, Constants::DH_MODULO_SIZE, derivedKEY, Constants::DerivedKeyLength, iv, test);
-
-
-	fprintf(f, "\n");
-	fprintf(f, "after:\n");
-
-	for (int i = 0; i < 192; i++) {
-		fprintf(f, "%02X ", test[i]);
 	}
 	fprintf(f, "\n");
 
@@ -336,7 +328,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	//computeDHexponentation(ValueA, Constants::DH_MODULO_SIZE, dhKey, Constants::DH_MODULO_SIZE);
 
 	fprintf(f, "\n");
-	fprintf(f, "DH key A :\n");
+	fprintf(f, "DH key  :\n");
 
 	for (int i = 0; i < 192; i++) {
 		fprintf(f, "%02X ", dhKey[i]);
@@ -349,7 +341,7 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	hashAndXor(dhKey, sharedKey, Constants::DH_MODULO_SIZE);
 
 	fprintf(f, "\n");
-	fprintf(f, "shared key A :\n");
+	fprintf(f, "shared key :\n");
 
 	for (int i = 0; i < 16; i++) {
 		fprintf(f, "%02X ", sharedKey[i]);
@@ -373,29 +365,48 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	}
 	fprintf(f, "\n");
 
-	BYTE *encryptedVerificationStr = new BYTE[verificationStringLen];
-	enryptcbcAES(verificationStr, verificationStringLen, sharedKey, Constants::DerivedKeyLength, iv, encryptedVerificationStr);
-	
-	DWORD checkReturnLen = 0;
+	BYTE *encryptedVerificationStr = new BYTE[verificationStringLen + padding];
+	enryptcbcAES(verificationStr, verificationStringLen + padding, sharedKey, Constants::DerivedKeyLength, iv, encryptedVerificationStr);
 
-	BYTE encryptedCheckBValue[Constants::DerivedKeyLength];
+	fprintf(f, "\n");
+	fprintf(f, "encrypted verification string :\n");
+
+	for (int i = 0; i < verificationStringLen + padding; i++) {
+		fprintf(f, "%02X ", encryptedVerificationStr[i]);
+	}
+	fprintf(f, "\n");
+	
+	DWORD checkReturnLen = 300;
+
+	BYTE encryptedCheckBValue[300];
 
 	//check values
-	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_CHECKCHANNEL, verificationStringLen, pin_length, encryptedVerificationStr, verificationStringLen + padding, encryptedCheckBValue, &checkReturnLen, hCard, pioSendPci);
-	/*
-	BYTE chechBValue[Constants::DerivedKeyLength];
-	decryptcbcAES(encryptedCheckBValue, Constants::DerivedKeyLength, sharedKey, iv, chechBValue);
-
+	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_CHECKCHANNEL, Constants::DH_MODULO_SIZE, pin_length, encryptedVerificationStr, verificationStringLen + padding, encryptedCheckBValue, &checkReturnLen, hCard, pioSendPci);
 	
-	if (memcmp(ValueB, chechBValue, Constants::DerivedKeyLength) == 0) {
+	BYTE chechBValue[Constants::DH_MODULO_SIZE];
+	decryptcbcAES(encryptedValueB, Constants::DH_MODULO_SIZE, sharedKey, Constants::DerivedKeyLength, iv, chechBValue);
+
+
+	fprintf(f, "\n");
+	fprintf(f, "Decrypted B to compare :\n");
+
+	for (int i = 0; i < 192; i++) {
+		fprintf(f, "%02X ", chechBValue[i]);
+	}
+	fprintf(f, "\n");
+	
+	if (memcmp(ValueB, chechBValue, Constants::DH_MODULO_SIZE) == 0) {
 		
 		memcpy(establishedKey, sharedKey, Constants::DerivedKeyLength);
+
+		fprintf(f, "heureka :\n");
+		fclose(f);
 		return 0;
 	}
-	*/
+	fprintf(f, "FUCK YOUUU:\n");
 	fclose(f);
 
-	return 0;
+	return 1;
 }
 
 
