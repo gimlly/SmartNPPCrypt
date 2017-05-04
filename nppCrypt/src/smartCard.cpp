@@ -226,13 +226,13 @@ LONG hashAndXor(BYTE *input, BYTE *output, size_t length) {
 LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey) {
 
 	fprintf(f, "\n");
-	fprintf(f, "Fucking pin: ");
+	fprintf(f, "Fucking pin:\n");
 
 	for (int i = 0; i < pin_length; i++) {
 		fprintf(f, "%02X ", pin[i]);
 
 	}
-
+	fprintf(f, "\n");
 
 	//select applet on card
 	SmartCard::selectApplet(hCard, pioSendPci);

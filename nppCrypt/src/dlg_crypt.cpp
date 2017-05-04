@@ -965,13 +965,13 @@ bool DlgCrypt::OnClickOKSmartCard()
 			char* pin = (char*)(t_pin.c_str());
 			char parsedPin[crypt::Constants::pin_size];
 
-			for (int i = 0; i < t_pin.size() / 2; i++)
+			for (int i = 0; i < t_pin.size() ; i++)
 			{
-				parsedPin[i] = pin[i * 2];
+				parsedPin[i] = pin[i * 2] - 0x30;
 			}
 			
 			LONG result = SmartCard::SmartCard::encryptKey((byte*)parsedPin,
-														   (DWORD)(t_pin.size()/2), 
+														   (DWORD)(t_pin.size()), 
 														   key, 
 														   (DWORD)(crypt::Constants::keyForSmartCard_size), 
 														   encryptedKey, 
