@@ -225,15 +225,6 @@ LONG hashAndXor(BYTE *input, BYTE *output, size_t length) {
 
 LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci, BYTE *establishedKey) {
 
-	fprintf(f, "\n");
-	fprintf(f, "Fucking pin:\n");
-
-	for (int i = 0; i < pin_length; i++) {
-		fprintf(f, "%02X ", pin[i]);
-
-	}
-	fprintf(f, "\n");
-
 	//select applet on card
 	SmartCard::selectApplet(hCard, pioSendPci);
 	
@@ -250,12 +241,21 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, &Constants::DH_generator,1, ValueB, Constants::DH_MODULO_SIZE);
 
 
-	//derive key (add pin)
-	//BYTE derivedKEY[Constants::DerivedKeyLength];
-	//deriveKey(derivedKEY, NULL);
+	//derive key
+	BYTE derivedKEY[Constants::AESKeyLength];
+	deriveKey(derivedKEY, pin);
+
+	fprintf(f, "\n");
+	fprintf(f, "derived key:\n");
+
+	for (int i = 0; i < 16; i++) {
+		fprintf(f, "%02X ", derivedKEY[i]);
+
+	}
+	fprintf(f, "\n");
 	
 	//testing only
-	BYTE derivedKEY[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
+	//BYTE derivedKEY[] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
 
 	//enrypt value B with derived key and send it to card
 	BYTE encryptedValueB[Constants::DH_MODULO_SIZE];
@@ -272,7 +272,6 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	//compute shared key from by DH protocol with value A from card
 	BYTE dhKey[Constants::DH_MODULO_SIZE];
 	computeDHexponentation(randomBuff, crypt::Constants::keyForSmartCard_size, ValueA, 192, dhKey, Constants::DH_MODULO_SIZE);
-	//computeDHexponentation(ValueA, Constants::DH_MODULO_SIZE, dhKey, Constants::DH_MODULO_SIZE);
 
 	BYTE sharedKey[Constants::AESKeyLength];
 
@@ -388,28 +387,3 @@ LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_le
 
 	return 1;
 }
-
-
-//TESTING ONLY
-LONG SmartCard::SmartCard::testBuildChannel() {
-
-	LONG status;
-
-	SCARDHANDLE hCard;
-	SCARD_IO_REQUEST pioSendPci;
-
-
-	//inicialize vector (all zeros for now)
-	byte iv[AES::BLOCKSIZE];
-	for (int i = 0; i < AES::BLOCKSIZE; i++) {
-		iv[i] = 0x00;
-	}
-
-
-	BYTE key[Constants::AESKeyLength];
-
-	SmartCard::buildChannel(Constants::testPin, 4, iv, &hCard, &pioSendPci, key);
-
-	return 0;
-}
-
