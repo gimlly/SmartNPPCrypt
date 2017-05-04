@@ -50,7 +50,9 @@ private:
 	void				OnCipherChange();	
 	void				OnCipherCategoryChange(int category, bool change_cipher=false);
 	void				OnEncodingChange(crypt::Encoding enc);
-	
+	int					HexToBin(const char* s, unsigned char*  buff, int length);
+	unsigned char		HexChar(char c);
+
 	
 	Operation				operation;
 	const string*			filename;

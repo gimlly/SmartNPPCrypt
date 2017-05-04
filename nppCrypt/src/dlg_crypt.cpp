@@ -1021,12 +1021,25 @@ bool DlgCrypt::OnClickOKSmartCard()
 		}
 		else
 		{
+			char* pin = (char*)(t_pin.c_str());
+			char parsedPin[crypt::Constants::pin_size];
+
+			for (int i = 0; i < t_pin.size(); i++)
+			{
+				parsedPin[i] = pin[i * 2] - 0x30;
+			}
+
+			const char* key_for_smartCard_hex = ((options->keyForSmartCard).c_str());
+			unsigned char key_for_smartCard[crypt::Constants::keyForSmartCard_size];
+
+			DlgCrypt::HexToBin(key_for_smartCard_hex, key_for_smartCard, crypt::Constants::keyForSmartCard_size*2);			
+
 			int length_of_decrypted_key = 0;
 			byte decryptedKey[crypt::Constants::smartCard_buffer];
-			LONG result = SmartCard::SmartCard::decryptKey((byte*)t_pin.c_str(), 
+			LONG result = SmartCard::SmartCard::decryptKey((byte*)parsedPin, 
 														   (DWORD)(t_pin.size()), 
-														   (byte*)((options->keyForSmartCard).c_str()), 
-														   (DWORD)(strlen((options->keyForSmartCard).c_str())), 
+															key_for_smartCard,
+														   (DWORD)(crypt::Constants::keyForSmartCard_size),
 														   decryptedKey, 
 														   (DWORD*) (&length_of_decrypted_key));
 											 
@@ -1176,4 +1189,31 @@ void DlgCrypt::OnEncodingChange(crypt::Encoding enc)
 	}
 	PostMessage(hwnd_basic, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_basic, IDC_CRYPT_PASSWORD), TRUE);
 	//PostMessage(hwnd_smartCard, WM_NEXTDLGCTL, (WPARAM)::GetDlgItem(hwnd_smartCard, IDC_CRYPT_PASSWORD), TRUE);
+}
+
+int DlgCrypt::HexToBin (const char* s, unsigned char*  buff, int length)
+{
+    int result;
+    if (!s || !buff || length <= 0) return -1;
+
+    for (result = 0; *s; ++result)
+    {
+        unsigned char msn = HexChar(*s++);
+        if (msn == 0xFF) return -1;
+        unsigned char lsn = HexChar(*s++);
+        if (lsn == 0xFF) return -1;
+        unsigned char bin = (msn << 4) + lsn;
+
+        if (length-- <= 0) return -1;
+        *buff++ = bin;
+    }
+    return result;
+}
+
+unsigned char DlgCrypt::HexChar(char c)
+{
+	if ('0' <= c && c <= '9') return (unsigned char)(c - '0');
+	if ('A' <= c && c <= 'F') return (unsigned char)(c - 'A' + 10);
+	if ('a' <= c && c <= 'f') return (unsigned char)(c - 'a' + 10);
+	return 0xFF;
 }
