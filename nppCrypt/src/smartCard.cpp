@@ -178,7 +178,15 @@ bool SmartCard::SmartCard::isReaderAvailable() {
 }
 
 bool SmartCard::SmartCard::isSmartCardAvailable() {
-	return 1;
+
+	SCARDHANDLE hCard;
+	SCARD_IO_REQUEST pioSendPci;
+
+	if (connectToCard(&hCard, &pioSendPci) == 0) {
+		return true;
+	}
+	
+	return false;
 }
 
 
