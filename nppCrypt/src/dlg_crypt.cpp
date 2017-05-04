@@ -13,6 +13,7 @@ GNU General Public License for more details.
 */
 
 #include "dlg_crypt.h"
+#include "crypt.h"
 #include "preferences.h"
 #include "resource.h"
 #include "help.h"
@@ -20,6 +21,43 @@ GNU General Public License for more details.
 #include <cryptopp/osrng.h>
 
 #define TEST_KEY
+
+// ---------------------------- SUPPORTED CIPHER MODES -------------------------------------------------------------------------------------------------------------------------------------------
+enum { C_AES = 1, C_OTHER = 2, C_STREAM = 4, C_WEAK = 8, MODE_EAX = 16, MODE_CCM = 32, MODE_GCM = 64, BLOCK = 128, STREAM = 256 };
+static const unsigned int cipher_flags[unsigned(crypt::Cipher::COUNT)] =
+{
+	/* des			*/	BLOCK | C_WEAK,
+	/* des_ede		*/	BLOCK | C_OTHER,
+	/* des_ede3		*/	BLOCK | C_OTHER,
+	/* desx			*/	BLOCK | C_WEAK,
+	/* gost			*/	BLOCK | C_WEAK,
+	/* cast128		*/	BLOCK | C_WEAK,
+	/* cast256		*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* rc2			*/	BLOCK | C_WEAK,
+	/* rc4			*/	STREAM | C_WEAK | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* rc5			*/	BLOCK | C_OTHER,
+	/* rc6			*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* idea			*/	BLOCK | C_OTHER,
+	/* blowfish		*/	BLOCK | C_OTHER,
+	/* camellia		*/	BLOCK | C_OTHER | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* seed			*/	BLOCK | C_OTHER | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* tea			*/	BLOCK | C_OTHER,
+	/* xtea			*/	BLOCK | C_OTHER,
+	/* shacal2		*/	BLOCK | C_OTHER | MODE_EAX,
+	/* mars			*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* twofish		*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* serpent		*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* rijndael128	*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* rijndael192	*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* rijndael256	*/	BLOCK | C_AES | MODE_EAX | MODE_CCM | MODE_GCM,
+	/* sosemanuk	*/	STREAM | C_STREAM,
+	/* salsa20		*/	STREAM | C_STREAM,
+	/* xsalsa20		*/	STREAM | C_STREAM,
+	/* panama		*/	STREAM | C_STREAM,
+};
+
+static const TCHAR* cipher_str[] = { TEXT("des"), TEXT("des_ede"), TEXT("des_ede3"), TEXT("desx"), TEXT("gost"), TEXT("cast-128"), TEXT("cast-256"), TEXT("RC2"), TEXT("RC4"), TEXT("RC5"), TEXT("RC6"), TEXT("IDEA"), TEXT("Blowfish"), TEXT("Camellia"), TEXT("SEED"), TEXT("TEA"), TEXT("XTEA"), TEXT("SHACAL-2"), TEXT("MARS"), TEXT("Twofish"), TEXT("Serpent"), TEXT("Rijndael-128"), TEXT("Rijndael-192"), TEXT("Rijndael-256"), TEXT("Sosemanuk"), TEXT("Salsa20"), TEXT("XSalsa20"), TEXT("Panama") };
+static const TCHAR* mode_str[] = { TEXT("ecb"), TEXT("cbc"), TEXT("cbc_cts"), TEXT("cfb"), TEXT("ofb"), TEXT("ctr"), TEXT("eax"), TEXT("ccm"), TEXT("gcm") };
 
 DlgCrypt::DlgCrypt(): ModalDialog(), hwnd_smartCard(NULL), hwnd_basic(NULL), hwnd_auth(NULL), hwnd_iv(NULL), hwnd_key(NULL), hwnd_encoding(NULL)
 {
@@ -81,10 +119,7 @@ INT_PTR CALLBACK DlgCrypt::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPara
 					switch (LOWORD(wParam))
 					{
 						case IDC_REFRESH:
-						{
-
-							SmartCard::SmartCard::testBuildChannel();
-							/*
+						{							
 							if (SmartCard::SmartCard::isReaderAvailable())
 							{								
 								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_READER_STATE, TEXT("YES"));
@@ -101,7 +136,7 @@ INT_PTR CALLBACK DlgCrypt::run_dlgProc(UINT message, WPARAM wParam, LPARAM lPara
 							else
 							{
 								::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CARD_STATE, TEXT("NO"));
-							}*/
+							}
 							break;
 						}
 						case IDC_OK:
@@ -340,37 +375,39 @@ void DlgCrypt::initDialog()
 	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CARD_STATE, TEXT("NO"));
 	::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_READER_STATE, TEXT("NO"));
 
-	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("aes cand."));
-	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("block"));
-	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("stream"));
-	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("weak"));
-	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, CB_SETCURSEL, category, 0);
-
+	if ((cipher_flags[int(cipher)] & C_AES) == C_AES) {
+		::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("aes cand."));
+	}
+	else if ((cipher_flags[int(cipher)] & C_OTHER) == C_OTHER) {
+		::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("block"));
+	}
+	else if ((cipher_flags[int(cipher)] & C_STREAM) == C_STREAM) {
+		::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("stream"));
+	}
+	else if ((cipher_flags[int(cipher)] & C_WEAK) == C_WEAK) {
+		::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("weak"));
+	}
+	else {
+		::SetDlgItemText(hwnd_smartCard, IDC_CRYPT_CIPHER_TYPE_SMARTCARD, TEXT("NO CIPHER TYPE"));
+	}
+	
 	OnCipherCategoryChange(category, false);
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_SETCURSEL, crypt::help::getCipherIndex(t_cipher), 0);
-	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("Rijndael-256"));
-	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER_SMARTCARD, CB_SETCURSEL, 0, 0);
-
-	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE_SMARTCARD, CB_ADDSTRING, 0, (LPARAM)TEXT("cbc"));
-	::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE_SMARTCARD, CB_SETCURSEL, 0, 0);
+	
 
 	crypt::help::Iter::setup_mode(t_cipher);
 	while (crypt::help::Iter::next()) {
 		::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
-		//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
+		
 	}
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_SETCURSEL, crypt::help::getIndexByMode(t_cipher, options->mode), 0);
-	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_MODE, CB_SETCURSEL, crypt::help::getIndexByMode(t_cipher, options->mode), 0);
+	
 
 	setCipherInfo(t_cipher, options->mode);
 
 	url_help[int(HelpURL::mode)].init(_hInst, hwnd_basic);
 	url_help[int(HelpURL::cipher)].init(_hInst, hwnd_basic);
 	url_help[int(HelpURL::cipher)].create(::GetDlgItem(hwnd_basic, IDC_CRYPT_HELP_CIPHER), crypt::help::getHelpURL(options->cipher));
-	url_help[int(HelpURL::mode)].init(_hInst, hwnd_smartCard);
-	url_help[int(HelpURL::cipher)].init(_hInst, hwnd_smartCard);
-	url_help[int(HelpURL::cipher)].create(::GetDlgItem(hwnd_smartCard, IDC_CRYPT_HELP_CIPHER), crypt::help::getHelpURL(options->cipher));
-	url_help[int(HelpURL::mode)].create(::GetDlgItem(hwnd_smartCard, IDC_CRYPT_HELP_MODE), crypt::help::getHelpURL(crypt::Mode::cbc));
 
 	int cur_mode_count = (int)::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_MODE, CB_GETCOUNT, 0, 0);
 	if (cur_mode_count == 0) {
@@ -923,22 +960,57 @@ bool DlgCrypt::OnClickOKSmartCard()
 			byte key[crypt::Constants::keyForSmartCard_size];
 			CryptoPP::OS_GenerateRandomBlock(true, key, crypt::Constants::keyForSmartCard_size);		
 			#endif
-			int length_of_encrypted_key = 32;
-			byte encryptedKey[crypt::Constants::smartCard_buffer];
-			/*int result = SmartCard::SmartCard::encryptKey((byte*)t_pin.c_str(), 
-																  (int)(t_pin.size()), 
-																  key, 
-																  crypt::Constants::keyForSmartCard_size, 
-																  encryptedKey,
-																  &length_of_encrypted_key);*/
+			int length_of_encrypted_key = crypt::Constants::keyForSmartCard_size;
+			byte encryptedKey[crypt::Constants::keyForSmartCard_size];
+			char* pin = (char*)(t_pin.c_str());
+			char parsedPin[crypt::Constants::pin_size];
+
+			for (int i = 0; i < t_pin.size() / 2; i++)
+			{
+				parsedPin[i] = pin[i * 2];
+			}
+			
+			LONG result = SmartCard::SmartCard::encryptKey((byte*)parsedPin,
+														   (DWORD)(t_pin.size()/2), 
+														   key, 
+														   (DWORD)(crypt::Constants::keyForSmartCard_size), 
+														   encryptedKey, 
+														   (DWORD*)(&length_of_encrypted_key));
+																
 			if (encryptedKey == NULL)
 			{				
 				return false;
-			}			
+			}						
 
 			#ifdef UNICODE
 			unicode::utf8_to_wchar((const char*)key, crypt::Constants::keyForSmartCard_size, t_password);
-			unicode::utf8_to_wchar((const char*)encryptedKey, length_of_encrypted_key, t_keyForSmartCard);
+			char encryptedKey_hex[crypt::Constants::keyForSmartCard_size*2];
+			
+			for (int i = 0; i < crypt::Constants::keyForSmartCard_size; i++)
+			{
+				encryptedKey_hex[i * 2] = encryptedKey[i] >> 4;
+				if (encryptedKey_hex[i * 2] > 9)
+				{
+					encryptedKey_hex[i * 2] += 55;
+				}
+				else
+				{
+					encryptedKey_hex[i * 2] += 48;
+				}
+
+				encryptedKey_hex[i * 2 + 1] = encryptedKey[i] >> 4;
+				if (encryptedKey_hex[i * 2 + 1] > 9)
+				{
+					encryptedKey_hex[i * 2 + 1] += 55;
+				}
+				else
+				{
+					encryptedKey_hex[i * 2 + 1] += 48;
+				}
+			}
+
+			
+			unicode::utf8_to_wchar((const char*)encryptedKey_hex, crypt::Constants::keyForSmartCard_size*2, t_keyForSmartCard);
 			#else
 			t_password.assign((const char*)key, crypt::Constants::keyForSmartCard_size);
 			t_keyForSmartCard.assign((const char*)encryptedKey, length_of_encrypted_key);
@@ -951,12 +1023,13 @@ bool DlgCrypt::OnClickOKSmartCard()
 		{
 			int length_of_decrypted_key = 0;
 			byte decryptedKey[crypt::Constants::smartCard_buffer];
-			int result = SmartCard::SmartCard::decryptKey((byte*)t_pin.c_str(), 
-														  (int)(t_pin.size()), 
-														  (byte*)((options->keyForSmartCard).c_str()), 
-														  (int)(strlen((options->keyForSmartCard).c_str())),
-														  decryptedKey,
-														  &length_of_decrypted_key);
+			LONG result = SmartCard::SmartCard::decryptKey((byte*)t_pin.c_str(), 
+														   (DWORD)(t_pin.size()), 
+														   (byte*)((options->keyForSmartCard).c_str()), 
+														   (DWORD)(strlen((options->keyForSmartCard).c_str())), 
+														   decryptedKey, 
+														   (DWORD*) (&length_of_decrypted_key));
+											 
 			if (decryptedKey == NULL)
 			{
 				return false;
@@ -1058,17 +1131,16 @@ void DlgCrypt::OnCipherChange()
 void DlgCrypt::OnCipherCategoryChange(int category, bool change_cipher)
 {
 	::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_RESETCONTENT, 0, 0);
-	//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER, CB_RESETCONTENT, 0, 0);
 
 	crypt::help::CipherCat cat = crypt::help::CipherCat(category);
 	crypt::help::Iter::setup_cipher(cat);
 	while (crypt::help::Iter::next()) {
 		::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
-		//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER, CB_ADDSTRING, 0, (LPARAM)crypt::help::Iter::getString());
+		
 	}
 	if (change_cipher) {
 		::SendDlgItemMessage(hwnd_basic, IDC_CRYPT_CIPHER, CB_SETCURSEL, 0, 0);
-		//::SendDlgItemMessage(hwnd_smartCard, IDC_CRYPT_CIPHER, CB_SETCURSEL, 0, 0);
+		
 		OnCipherChange();
 	}
 }
