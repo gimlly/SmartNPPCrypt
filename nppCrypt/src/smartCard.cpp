@@ -16,8 +16,6 @@
 using namespace CryptoPP;
 
 
-FILE *f;
-
 LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, byte * data, size_t dataSize, LPBYTE returnData, LPDWORD rDataLen, SCARDHANDLE *hCard, SCARD_IO_REQUEST *pioSendPci) {
 	LONG returnValue; 
 
@@ -37,6 +35,8 @@ LONG SmartCard::SmartCard::sendADPDU(byte cla, byte command, byte p1, byte p2, b
 
 	DWORD retSize = 300;
 	BYTE retAPDU[300];
+
+	returnValue = SCardTransmit(*hCard, pioSendPci, apdu, dataSize + 5, NULL, retAPDU, &retSize);
 
 	if (memcmp(retAPDU + (retSize - 2), Constants::successADPU, 2) == 0) {
 		memcpy(returnData, retAPDU, retSize - 2);
@@ -223,17 +223,8 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 
 	//derive key
 	BYTE derivedKEY[Constants::AESKeyLength];
-	deriveKey(derivedKEY, pin);
-
-	fprintf(f, "\n");
-	fprintf(f, "derived key:\n");
-
-	for (int i = 0; i < 16; i++) {
-		fprintf(f, "%02X ", derivedKEY[i]);
-
-	}
-	fprintf(f, "\n");
-
+	deriveKey(derivedKEY, NULL);
+	
 	//enrypt value B with derived key and send it to card
 	BYTE encryptedValueB[Constants::DH_MODULO_SIZE];
 	enryptcbcAES(ValueB, Constants::DH_MODULO_SIZE, derivedKEY, Constants::AESKeyLength, iv, encryptedValueB);
@@ -274,8 +265,8 @@ LONG SmartCard::SmartCard::buildChannel(BYTE *pin, DWORD pin_length, BYTE *iv, S
 	//check values
 	SmartCard::sendADPDU(Constants::appletCLA, Constants::INS_CHECKCHANNEL, Constants::DH_MODULO_SIZE, pin_length, encryptedVerificationStr, verificationStringLen + padding, encryptedCheckBValue, &checkReturnLen, hCard, pioSendPci);
 
-	if (memcmp(encryptedCheckBValue, Constants::badPin, 2) == 0) {
-		return Constants::BAD_PIN_CODE;
+	if (memcmp(encryptedCheckBValue, Constants::badPin, 2)==0) {
+		return 5;
 	}
 
 	BYTE chechBValue[Constants::DH_MODULO_SIZE];
@@ -295,17 +286,14 @@ LONG SmartCard::SmartCard::encryptKey(byte * pin, DWORD pin_length, byte * key, 
 	
 	
 	return encryptDecryptKey(Constants::FETCH_FILEKEY_ENCRYPT, pin, pin_length, key, key_length, encrypted, encryptedKey_length);
-
 }
 
 LONG SmartCard::SmartCard::decryptKey(byte* pin, DWORD pin_length, byte* encryptedKey, DWORD encryptKey_length, byte* decryptedKey, DWORD* decryptedKey_length) {
 
 	return encryptDecryptKey(Constants::FETCH_FILEKEY_DECRYPT, pin, pin_length, encryptedKey, encryptKey_length, decryptedKey, decryptedKey_length);
-
 }
 
 LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_length, byte * key, DWORD key_length, byte * encryptedDecrypted, DWORD * encryptedDecryptedKey_length) {
-
 	LONG status;
 
 	SCARDHANDLE hCard;
@@ -319,7 +307,7 @@ LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_le
 		iv[i] = 0x00;
 	}
 
-	status = buildChannel(pin, pin_length, iv, &hCard, &pioSendPci, sessionKey);
+	 status = buildChannel(pin, pin_length, iv, &hCard, &pioSendPci, sessionKey);
 
 	if (status == 0) {
 
@@ -335,9 +323,8 @@ LONG SmartCard::SmartCard::encryptDecryptKey(byte mode, byte * pin, DWORD pin_le
 		
 		decryptcbcAES(keyEncryptedWithKek, sizeOfKekEcryptedKey, sessionKey, Constants::AESKeyLength, iv, encryptedDecrypted);
 
-		fclose(f);
 		return 0;
 	}
-
+	
 	return status;
 }
