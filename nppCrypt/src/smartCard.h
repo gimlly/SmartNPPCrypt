@@ -30,8 +30,9 @@ namespace SmartCard
 		static BYTE salt[] = { 0xA0, 0xE3, 0xBB, 0x8F, 0x13, 0xB9, 0xDD, 0x05, 0xA0, 0x8D, 0x64, 0xD2, 0x37, 0xFD, 0xD8, 0x0C };
 		static size_t saltLength = 16;
 		static BYTE successADPU[] = { 0x90, 0x00 };
-
+		static BYTE badPin[] = { 0x69, 0x00 };
 		static LONG hashAndXor(BYTE *input, BYTE *output, size_t length);
+		static LONG BAD_PIN_CODE = 5;
 	};
 
 	class SmartCard
